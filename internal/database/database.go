@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/ojt-tel4vn-project/internal-collab-api/config"
+	"github.com/ojt-tel4vn-project/internal-collab-api/internal/config"
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

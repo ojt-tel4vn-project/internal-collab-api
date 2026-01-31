@@ -1,12 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"os"
 )
 
 type Config struct {
 	Database DatabaseConfig
 	Server   ServerConfig
+	JWT      JWTConfig
 }
 
 type DatabaseConfig struct {
@@ -22,6 +24,11 @@ type ServerConfig struct {
 	Port string
 }
 
+type JWTConfig struct {
+	Secret          string
+	ExpirationHours int
+}
+
 func Load() *Config {
 	return &Config{
 		Database: DatabaseConfig{
@@ -35,6 +42,10 @@ func Load() *Config {
 		Server: ServerConfig{
 			Port: getEnv("SERVER_PORT", "8080"),
 		},
+		JWT: JWTConfig{
+			Secret:          getEnv("JWT_SECRET", "your-secret-key-change-this-in-production"),
+			ExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
+		},
 	}
 }
 
@@ -43,4 +54,17 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvAsInt(key string, defaultValue int) int {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+
+	value := defaultValue
+	if _, err := fmt.Sscanf(valueStr, "%d", &value); err != nil {
+		return defaultValue
+	}
+	return value
 }

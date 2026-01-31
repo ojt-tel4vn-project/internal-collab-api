@@ -9,8 +9,9 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
-	"github.com/ojt-tel4vn-project/internal-collab-api/config"
-	"github.com/ojt-tel4vn-project/internal-collab-api/database"
+	"github.com/ojt-tel4vn-project/internal-collab-api/internal/config"
+	"github.com/ojt-tel4vn-project/internal-collab-api/internal/database"
+	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
 	"github.com/ojt-tel4vn-project/internal-collab-api/routes"
 	"github.com/ojt-tel4vn-project/internal-collab-api/services"
@@ -24,6 +25,9 @@ func main() {
 
 	// Load configuration
 	cfg := config.Load()
+
+	// Initialize JWT
+	crypto.InitJWT(cfg.JWT.Secret)
 
 	// Connect to database
 	if err := database.Connect(cfg); err != nil {
