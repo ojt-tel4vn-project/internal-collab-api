@@ -8,6 +8,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type PasswordService interface {
+	HashPassword(password string) (string, error)
+	VerifyPassword(hashedPassword, password string) error
+}
+
 func HashPassword(password string) (string, error) {
 	if password == "" {
 		logger.Error("Hash password failed: empty password provided")

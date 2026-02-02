@@ -12,6 +12,8 @@ import (
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/config"
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/database"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
+	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/email"
+	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/logger"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
 	"github.com/ojt-tel4vn-project/internal-collab-api/routes"
 	"github.com/ojt-tel4vn-project/internal-collab-api/services"
@@ -22,6 +24,12 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found")
 	}
+
+	// Initialize Logger
+	if err := logger.InitDefaultLogger(); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
 
 	// Load configuration
 	cfg := config.Load()
@@ -40,17 +48,40 @@ func main() {
 	}
 
 	// Initialize dependencies
+	// Repositories
 	todoRepo := repository.NewTodoRepository(database.DB)
+	employeeRepo := repository.NewEmployeeRepository(database.DB)
+
+	// Utils
+	jwtService := crypto.NewJWTService()
+	passwordService := crypto.NewPasswordService()
+
+	// Email Service
+	var emailService email.EmailService
+	if cfg.Email.BrevoAPIKey != "" {
+		emailService = email.NewBrevoEmailService(
+			cfg.Email.BrevoAPIKey,
+			cfg.Email.FromEmail,
+			cfg.Email.FromName,
+		)
+		log.Println("Email service initialized (Brevo)")
+	} else {
+		log.Println("Email service disabled (no BREVO_API_KEY configured)")
+	}
+
+	// Services
 	todoService := services.NewTodoService(todoRepo)
+	authService := services.NewAuthService(employeeRepo, jwtService, passwordService)
+	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
 
 	// Setup Chi router
 	router := chi.NewMux()
 
 	// Setup Huma API
-	api := humachi.New(router, huma.DefaultConfig("Todo List API", "1.0.0"))
+	api := humachi.New(router, huma.DefaultConfig("Internal Collab API", "1.0.0"))
 
 	// Register routes
-	routes.SetupRoutes(api, todoService)
+	routes.SetupRoutes(api, todoService, authService, employeeService, jwtService, employeeRepo)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)
