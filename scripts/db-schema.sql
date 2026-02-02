@@ -719,3 +719,115 @@ ORDER BY total_stickers_received DESC;
 -- Grant permissions (adjust based on your roles)
 -- GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
 -- GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
+
+-- ============================================================================
+-- 13. ADDITIONAL SEED DATA (For Testing)
+-- ============================================================================
+
+-- Insert Departments
+INSERT INTO departments (name, description) VALUES
+    ('Engineering', 'Create and maintain software products'),
+    ('Human Resources', 'Manage employee relations and benefits'),
+    ('Sales', 'Sell products and services')
+ON CONFLICT (name) DO NOTHING;
+
+-- Insert Test Employees & Related Data
+DO $$
+DECLARE
+    dept_eng UUID;
+    dept_hr UUID;
+    dept_sales UUID;
+    
+    role_admin UUID;
+    role_hr UUID;
+    role_manager UUID;
+    role_employee UUID;
+    
+    emp_admin UUID;
+    emp_hr UUID;
+    emp_manager UUID;
+    emp_staff UUID;
+    
+    current_year INT := EXTRACT(YEAR FROM CURRENT_DATE);
+    -- Hash for password '123456' generated using bcrypt
+    dummy_hash VARCHAR := '$2a$10$4ptAlmlSkklAtLgq4sArP.RmBaFGhG61CUIeWlXrWdS9gImic/uIO'; 
+BEGIN
+    -- Get Department IDs
+    SELECT id INTO dept_eng FROM departments WHERE name = 'Engineering';
+    SELECT id INTO dept_hr FROM departments WHERE name = 'Human Resources';
+    SELECT id INTO dept_sales FROM departments WHERE name = 'Sales';
+    
+    -- Get Role IDs
+    SELECT id INTO role_admin FROM roles WHERE name = 'admin';
+    SELECT id INTO role_hr FROM roles WHERE name = 'hr';
+    SELECT id INTO role_manager FROM roles WHERE name = 'manager';
+    SELECT id INTO role_employee FROM roles WHERE name = 'employee';
+
+    -- Create Admin User (admin@company.com / 123456)
+    INSERT INTO employees (
+        employee_code, email, password_hash, first_name, last_name, 
+        date_of_birth, phone, address, department_id, position, join_date, status
+    ) VALUES (
+        'EMP001', 'admin@company.com', dummy_hash,
+        'Admin', 'User', '1990-01-01', '0123456789', '123 Tech Street', 
+        dept_eng, 'System Administrator', '2023-01-01', 'active'
+    ) ON CONFLICT (email) DO UPDATE SET email=EXCLUDED.email RETURNING id INTO emp_admin;
+    
+    -- Create HR User (hr@company.com / 123456)
+    INSERT INTO employees (
+        employee_code, email, password_hash, first_name, last_name, 
+        date_of_birth, phone, address, department_id, position, join_date, status
+    ) VALUES (
+        'EMP002', 'hr@company.com', dummy_hash,
+        'HR', 'Manager', '1992-05-15', '0987654321', '456 People Ave', 
+        dept_hr, 'HR Manager', '2023-02-01', 'active'
+    ) ON CONFLICT (email) DO UPDATE SET email=EXCLUDED.email RETURNING id INTO emp_hr;
+    
+    -- Create Manager User (manager@company.com / 123456)
+    INSERT INTO employees (
+        employee_code, email, password_hash, first_name, last_name, 
+        date_of_birth, phone, address, department_id, position, join_date, status
+    ) VALUES (
+        'EMP003', 'manager@company.com', dummy_hash,
+        'Sales', 'Lead', '1988-11-20', '0112233445', '789 Market Blvd', 
+        dept_sales, 'Sales Manager', '2023-03-01', 'active'
+    ) ON CONFLICT (email) DO UPDATE SET email=EXCLUDED.email RETURNING id INTO emp_manager;
+    
+    -- Create Regular Employee (staff@company.com / 123456)
+    INSERT INTO employees (
+        employee_code, email, password_hash, first_name, last_name, 
+        date_of_birth, phone, address, department_id, position, manager_id, join_date, status
+    ) VALUES (
+        'EMP004', 'staff@company.com', dummy_hash,
+        'John', 'Developer', '1995-08-10', '0556677889', '321 Code Lane', 
+        dept_eng, 'Software Engineer', emp_admin, '2023-06-01', 'active'
+    ) ON CONFLICT (email) DO UPDATE SET email=EXCLUDED.email RETURNING id INTO emp_staff;
+
+    -- Assign Roles (avoiding duplicates)
+    INSERT INTO employee_roles (employee_id, role_id) VALUES
+        (emp_admin, role_admin),
+        (emp_admin, role_employee),
+        (emp_hr, role_hr),
+        (emp_hr, role_employee),
+        (emp_manager, role_manager),
+        (emp_manager, role_employee),
+        (emp_staff, role_employee)
+    ON CONFLICT DO NOTHING;
+
+    -- Initialize Leave Quotas for Current Year
+    INSERT INTO leave_quotas (employee_id, year, total_days) VALUES
+        (emp_admin, current_year, 12),
+        (emp_hr, current_year, 12),
+        (emp_manager, current_year, 12),
+        (emp_staff, current_year, 12)
+    ON CONFLICT DO NOTHING;
+
+    -- Initialize Point Balances for Current Year
+    INSERT INTO point_balances (employee_id, year, initial_points, current_points) VALUES
+        (emp_admin, current_year, 100, 100),
+        (emp_hr, current_year, 100, 100),
+        (emp_manager, current_year, 100, 100),
+        (emp_staff, current_year, 100, 100)
+    ON CONFLICT DO NOTHING;
+
+END $$;

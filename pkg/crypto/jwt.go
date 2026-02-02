@@ -12,12 +12,26 @@ import (
 
 var jwtSecret []byte
 
+// Common JWT errors
+var (
+	ErrMissingAuthHeader = errors.New("missing authorization header")
+	ErrInvalidAuthFormat = errors.New("invalid authorization format, expected: Bearer <token>")
+	ErrInvalidToken      = errors.New("invalid token")
+	ErrExpiredToken      = errors.New("token has expired")
+)
+
 // Claims struct chứa thông tin trong JWT token
 type Claims struct {
 	UserID   uuid.UUID `json:"user_id"`
 	Username string    `json:"username"`
 	Email    string    `json:"email"`
 	jwt.RegisteredClaims
+}
+
+type JWTService interface {
+	GenerateToken(userID uuid.UUID, username, email string, expirationHours int) (string, error)
+	ValidateToken(tokenString string) (*Claims, error)
+	RefreshToken(tokenString string, expirationHours int) (string, error)
 }
 
 // InitJWT khởi tạo JWT secret từ config (gọi khi start app)

@@ -22,13 +22,16 @@ RESTful API for Internal Collaboration System built with Golang and PostgreSQL.
 **API Spec:** OpenAPI 3.0.3
 
 ### Features
-- 🔐 JWT Authentication
-- 👥 Employee Management
-- 📅 Attendance Tracking
-- 🏖️ Leave Management
-- 🎁 Reward System (Stickers)
-- 📚 Document Management
-- 🔔 Real-time Notifications
+- 🔐 JWT Authentication (Login, Refresh Token, Password Reset)
+- 👥 Employee Management (Onboard, Offboard, Profile, Subordinates)
+- 📅 Attendance Tracking (Upload, Confirm, Dispute, Auto-confirm)
+- 🏖️ Leave Management (Request, Approve via System/Email, Quota)
+- 🎁 Reward System (Points, Stickers, Leaderboard)
+- 📚 Document Management (Categories, Upload, Read Tracking)
+- 🔔 Notifications (In-app, Email, Preferences)
+- 👤 Admin & RBAC (User Management, Roles, Permissions)
+- 📝 Audit Logs (Action Tracking, Export)
+- ⚙️ Background Jobs (Birthday, Points Reset, Auto-confirm)
 
 ---
 
@@ -245,6 +248,59 @@ Request:
 }
 ```
 
+#### Refresh Token
+```http
+POST /auth/refresh
+```
+
+Request:
+```json
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+Response:
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_at": "2024-11-01T11:00:00Z"
+}
+```
+
+#### Forgot Password
+```http
+POST /auth/forgot-password
+```
+
+Request:
+```json
+{
+  "email": "john.doe@company.com"
+}
+```
+
+Response:
+```json
+{
+  "message": "Password reset email sent if account exists"
+}
+```
+
+#### Reset Password
+```http
+POST /auth/reset-password
+```
+
+Request:
+```json
+{
+  "token": "reset_token_from_email",
+  "new_password": "new_password123"
+}
+```
+
 ---
 
 ### 2. Employees
@@ -305,6 +361,42 @@ Request:
 }
 ```
 
+#### Update Employee (HR only)
+```http
+PUT /employees/{id}
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "position": "Senior Developer",
+  "department_id": 2,
+  "manager_id": 10,
+  "status": "active"
+}
+```
+
+#### Get Manager's Subordinates
+```http
+GET /employees/subordinates
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": [
+    {
+      "id": 5,
+      "full_name": "Jane Smith",
+      "position": "Frontend Developer",
+      "email": "jane.smith@company.com"
+    }
+  ]
+}
+```
+
 #### Offboard Employee
 ```http
 DELETE /employees/{id}
@@ -315,6 +407,27 @@ Authorization: Bearer <token>
 ```http
 GET /employees/birthdays?period=today
 Authorization: Bearer <token>
+```
+
+#### Get Birthday Notifications Config
+```http
+GET /employees/birthdays/config
+Authorization: Bearer <token>
+```
+
+#### Update Birthday Notifications Config (HR only)
+```http
+PUT /employees/birthdays/config
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "enabled": true,
+  "notification_time": "09:00",
+  "channels": ["in_app", "email"]
+}
 ```
 
 ---
@@ -382,7 +495,7 @@ Authorization: Bearer <token>
 Request:
 ```json
 {
-  "status": "confirmed",
+  "status": "confirmed",  // status: "confirmed", "disputed", "auto_confirmed"
   "comment": "I was working from home on day 4"
 }
 ```
@@ -412,6 +525,57 @@ Request:
 {
   "hr_response": "We've updated your record for that day",
   "status": "resolved"
+}
+```
+
+#### Get Attendance Config (HR only)
+```http
+GET /attendances/config
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": {
+    "confirmation_deadline_days": 5,
+    "auto_confirm_enabled": true,
+    "reminder_before_deadline_days": 2
+  }
+}
+```
+
+#### Update Attendance Config (HR only)
+```http
+PUT /attendances/config
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "confirmation_deadline_days": 7,
+  "auto_confirm_enabled": true,
+  "reminder_before_deadline_days": 3
+}
+```
+
+#### Get Attendance Summary (HR only)
+```http
+GET /attendances/summary?year=2024&month=10
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": {
+    "total_employees": 50,
+    "confirmed": 40,
+    "pending": 8,
+    "disputed": 2,
+    "auto_confirmed": 5
+  }
 }
 ```
 
@@ -445,6 +609,33 @@ Response:
     }
   ]
 }
+```
+
+#### Update Leave Quota (HR only)
+```http
+PUT /leave-quotas/{id}
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "total_days": 15.0,
+  "reason": "Promoted to senior level"
+}
+```
+
+#### Bulk Import Leave Quotas (HR only)
+```http
+POST /leave-quotas/import
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+Form Data:
+```
+year: 2024
+file: <excel/csv file>
 ```
 
 #### List Leave Requests
@@ -489,6 +680,12 @@ Response:
     "reason": "Family vacation",
     "status": "pending",
     "submitted_at": "2024-10-20T10:30:00Z"
+  },
+  "warning": {
+    "type": "QUOTA_EXCEEDED",
+    "message": "This request exceeds your remaining leave quota by 2 days",
+    "remaining_days": 1.5,
+    "requested_days": 3.0
   }
 }
 ```
@@ -520,6 +717,78 @@ DELETE /leave-requests/{id}
 Authorization: Bearer <token>
 ```
 
+#### Approve Leave via Email Link
+```http
+POST /leave-requests/{id}/email-action
+```
+
+Request:
+```json
+{
+  "token": "signed_one_time_token_from_email",
+  "action": "approve"
+}
+```
+
+Note: This endpoint does not require Authorization header. The `token` is a signed, one-time use token sent via email to the manager.
+
+#### Get Leave Requests for Manager
+```http
+GET /leave-requests/pending-approval?page=1&limit=20
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": [
+    {
+      "id": 10,
+      "employee": {
+        "id": 5,
+        "full_name": "Jane Smith"
+      },
+      "leave_type": {
+        "id": 1,
+        "name": "Annual Leave"
+      },
+      "from_date": "2024-11-15",
+      "to_date": "2024-11-17",
+      "total_days": 3.0,
+      "reason": "Family vacation",
+      "status": "pending",
+      "submitted_at": "2024-10-20T10:30:00Z"
+    }
+  ]
+}
+```
+
+#### Get Company Leave Overview (HR only)
+```http
+GET /leave-requests/overview?year=2024&month=11
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": {
+    "total_requests": 25,
+    "pending": 5,
+    "approved": 18,
+    "rejected": 2,
+    "employees_on_leave_today": 3,
+    "upcoming_leaves": [
+      {
+        "employee": "John Doe",
+        "from_date": "2024-11-20",
+        "to_date": "2024-11-22"
+      }
+    ]
+  }
+}
+```
+
 ---
 
 ### 5. Rewards
@@ -545,6 +814,84 @@ Response:
 }
 ```
 
+#### Grant Annual Points (HR/Admin only)
+```http
+POST /rewards/points/grant
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "year": 2025,
+  "points": 100,
+  "scope": "all",
+  "department_id": null
+}
+```
+
+Note: `scope` can be "all", "department", or "individual". If "department", provide `department_id`. If "individual", provide `employee_ids` array.
+
+#### Get Points Grant History (HR/Admin only)
+```http
+GET /rewards/points/grants?year=2024
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "year": 2024,
+      "points": 100,
+      "scope": "all",
+      "granted_by": {
+        "id": 1,
+        "full_name": "Admin User"
+      },
+      "granted_at": "2024-01-01T00:00:00Z",
+      "employees_affected": 50
+    }
+  ]
+}
+```
+
+#### Get Reward Config (HR/Admin only)
+```http
+GET /rewards/config
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": {
+    "annual_points": 100,
+    "reset_date": "01-01",
+    "reset_type": "yearly",
+    "allow_negative_balance": false
+  }
+}
+```
+
+#### Update Reward Config (HR/Admin only)
+```http
+PUT /rewards/config
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "annual_points": 120,
+  "reset_date": "01-01",
+  "reset_type": "yearly",
+  "allow_negative_balance": false
+}
+```
+
 #### List Sticker Types
 ```http
 GET /rewards/sticker-types
@@ -566,6 +913,44 @@ Response:
     }
   ]
 }
+```
+
+#### Create Sticker Type (HR/Admin only)
+```http
+POST /rewards/sticker-types
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "name": "Star Performer",
+  "description": "For outstanding performance",
+  "icon_url": "https://cdn.company.com/stickers/star.png",
+  "point_cost": 25,
+  "category": "recognition",
+  "is_active": true
+}
+```
+
+#### Update Sticker Type (HR/Admin only)
+```http
+PUT /rewards/sticker-types/{id}
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "point_cost": 30,
+  "is_active": false
+}
+```
+
+#### Delete Sticker Type (HR/Admin only)
+```http
+DELETE /rewards/sticker-types/{id}
+Authorization: Bearer <token>
 ```
 
 #### Send Sticker
@@ -660,6 +1045,43 @@ GET /documents/categories
 Authorization: Bearer <token>
 ```
 
+#### Create Document Category (HR only)
+```http
+POST /documents/categories
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "name": "Training Materials",
+  "description": "Employee training documents",
+  "parent_id": null
+}
+```
+
+#### Update Document Category (HR only)
+```http
+PUT /documents/categories/{id}
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "name": "Updated Category Name",
+  "description": "Updated description"
+}
+```
+
+#### Delete Document Category (HR only)
+```http
+DELETE /documents/categories/{id}
+Authorization: Bearer <token>
+```
+
+Note: Category can only be deleted if it has no documents.
+
 #### List Documents
 ```http
 GET /documents?category_id=1&search=handbook&page=1&limit=20
@@ -698,6 +1120,52 @@ Authorization: Bearer <token>
 ```http
 POST /documents/{id}/mark-read
 Authorization: Bearer <token>
+```
+
+#### Update Document (HR only)
+```http
+PUT /documents/{id}
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "title": "Updated Employee Handbook 2024",
+  "description": "Revised version with policy updates",
+  "category_id": 2,
+  "is_public": true
+}
+```
+
+#### Delete Document (HR only)
+```http
+DELETE /documents/{id}
+Authorization: Bearer <token>
+```
+
+#### Get Document Read Status (HR only)
+```http
+GET /documents/{id}/readers
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": {
+    "total_employees": 50,
+    "read_count": 35,
+    "unread_count": 15,
+    "readers": [
+      {
+        "employee_id": 1,
+        "full_name": "John Doe",
+        "read_at": "2024-10-20T10:30:00Z"
+      }
+    ]
+  }
+}
 ```
 
 ---
@@ -746,6 +1214,102 @@ POST /notifications/read-all
 Authorization: Bearer <token>
 ```
 
+#### Get Notification Preferences
+```http
+GET /notifications/preferences
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": {
+    "in_app": {
+      "leave_request": true,
+      "leave_approval": true,
+      "attendance_reminder": true,
+      "sticker_received": true,
+      "birthday": true,
+      "document_new": true
+    },
+    "email": {
+      "leave_request": true,
+      "leave_approval": true,
+      "attendance_reminder": false,
+      "sticker_received": false,
+      "birthday": true,
+      "document_new": false
+    }
+  }
+}
+```
+
+#### Update Notification Preferences
+```http
+PUT /notifications/preferences
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "email": {
+    "leave_approval": true,
+    "sticker_received": true
+  }
+}
+```
+
+#### Get Notification Types
+```http
+GET /notifications/types
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": [
+    {
+      "type": "leave_request",
+      "name": "Leave Request",
+      "description": "When someone submits a leave request for your approval",
+      "channels": ["in_app", "email"]
+    },
+    {
+      "type": "leave_approval",
+      "name": "Leave Approval/Rejection",
+      "description": "When your leave request is approved or rejected",
+      "channels": ["in_app", "email"]
+    },
+    {
+      "type": "attendance_reminder",
+      "name": "Attendance Confirmation Reminder",
+      "description": "Reminder to confirm your monthly attendance",
+      "channels": ["in_app", "email"]
+    },
+    {
+      "type": "sticker_received",
+      "name": "Sticker Received",
+      "description": "When someone sends you a sticker",
+      "channels": ["in_app", "email"]
+    },
+    {
+      "type": "birthday",
+      "name": "Birthday Notification",
+      "description": "Daily birthday announcements",
+      "channels": ["in_app", "email"]
+    },
+    {
+      "type": "document_new",
+      "name": "New Document",
+      "description": "When a new document is uploaded",
+      "channels": ["in_app", "email"]
+    }
+  ]
+}
+```
+
 ---
 
 ### 8. System
@@ -771,10 +1335,443 @@ GET /system/settings
 Authorization: Bearer <token>
 ```
 
+#### Update System Settings (Admin only)
+```http
+PUT /system/settings
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "company_name": "My Company",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "date_format": "DD/MM/YYYY",
+  "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"]
+}
+```
+
 #### List Departments
 ```http
 GET /departments
 Authorization: Bearer <token>
+```
+
+---
+
+### 9. Audit Logs (Admin/HR only)
+
+#### List Audit Logs
+```http
+GET /audit-logs?page=1&limit=50&action=leave.approve&actor_id=1&from=2024-10-01&to=2024-10-31
+Authorization: Bearer <token>
+```
+
+Query Parameters:
+- `action`: Filter by action type (e.g., `leave.approve`, `leave.reject`, `sticker.send`, `employee.create`, `employee.offboard`, `attendance.confirm`)
+- `actor_id`: Filter by user who performed the action
+- `target_type`: Filter by target entity type (e.g., `employee`, `leave_request`, `sticker`)
+- `target_id`: Filter by specific target entity ID
+- `from`: Start date (ISO 8601)
+- `to`: End date (ISO 8601)
+
+Response:
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "action": "leave.approve",
+      "actor": {
+        "id": 5,
+        "full_name": "Manager Name",
+        "email": "manager@company.com"
+      },
+      "target_type": "leave_request",
+      "target_id": 10,
+      "details": {
+        "leave_type": "Annual Leave",
+        "from_date": "2024-11-15",
+        "to_date": "2024-11-17",
+        "employee_name": "John Doe"
+      },
+      "ip_address": "192.168.1.100",
+      "user_agent": "Mozilla/5.0...",
+      "created_at": "2024-10-20T14:30:00Z"
+    },
+    {
+      "id": 2,
+      "action": "sticker.send",
+      "actor": {
+        "id": 1,
+        "full_name": "John Doe",
+        "email": "john.doe@company.com"
+      },
+      "target_type": "sticker",
+      "target_id": 42,
+      "details": {
+        "receiver_name": "Jane Smith",
+        "sticker_type": "Thumbs Up",
+        "point_cost": 10
+      },
+      "ip_address": "192.168.1.50",
+      "user_agent": "Mozilla/5.0...",
+      "created_at": "2024-10-20T15:30:00Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 50,
+    "total": 234,
+    "total_pages": 5
+  }
+}
+```
+
+#### Get Audit Log Detail
+```http
+GET /audit-logs/{id}
+Authorization: Bearer <token>
+```
+
+#### Get Audit Log Actions
+```http
+GET /audit-logs/actions
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": [
+    {
+      "action": "leave.approve",
+      "display_name": "Leave Request Approved",
+      "category": "leave"
+    },
+    {
+      "action": "leave.reject",
+      "display_name": "Leave Request Rejected",
+      "category": "leave"
+    },
+    {
+      "action": "sticker.send",
+      "display_name": "Sticker Sent",
+      "category": "rewards"
+    },
+    {
+      "action": "employee.create",
+      "display_name": "Employee Created (Onboard)",
+      "category": "employee"
+    },
+    {
+      "action": "employee.offboard",
+      "display_name": "Employee Offboarded",
+      "category": "employee"
+    },
+    {
+      "action": "attendance.confirm",
+      "display_name": "Attendance Confirmed",
+      "category": "attendance"
+    },
+    {
+      "action": "attendance.auto_confirm",
+      "display_name": "Attendance Auto-Confirmed",
+      "category": "attendance"
+    },
+    {
+      "action": "user.login",
+      "display_name": "User Login",
+      "category": "auth"
+    },
+    {
+      "action": "user.password_change",
+      "display_name": "Password Changed",
+      "category": "auth"
+    }
+  ]
+}
+```
+
+#### Export Audit Logs (Admin only)
+```http
+GET /audit-logs/export?format=csv&from=2024-10-01&to=2024-10-31
+Authorization: Bearer <token>
+```
+
+Response: CSV file download
+
+---
+
+### 10. Admin (Admin only)
+
+#### List Users
+```http
+GET /admin/users?page=1&limit=20&status=active&role=employee
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "email": "john.doe@company.com",
+      "full_name": "John Doe",
+      "roles": ["employee"],
+      "status": "active",
+      "last_login_at": "2024-10-20T10:00:00Z",
+      "created_at": "2024-01-15T00:00:00Z"
+    }
+  ]
+}
+```
+
+#### Create User
+```http
+POST /admin/users
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "email": "new.user@company.com",
+  "password": "temporary_password",
+  "roles": ["employee"],
+  "employee_id": 10
+}
+```
+
+#### Update User
+```http
+PUT /admin/users/{id}
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "roles": ["employee", "manager"],
+  "status": "active"
+}
+```
+
+#### Disable User
+```http
+POST /admin/users/{id}/disable
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "reason": "Employee offboarded"
+}
+```
+
+#### Enable User
+```http
+POST /admin/users/{id}/enable
+Authorization: Bearer <token>
+```
+
+#### Reset User Password
+```http
+POST /admin/users/{id}/reset-password
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "temporary_password": "auto_generated_temp_password",
+  "message": "User will be required to change password on next login"
+}
+```
+
+#### List Roles
+```http
+GET /admin/roles
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "admin",
+      "display_name": "Administrator",
+      "description": "Full system access",
+      "permissions": ["users.manage", "settings.manage", "all"]
+    },
+    {
+      "id": 2,
+      "name": "hr",
+      "display_name": "Human Resources",
+      "description": "HR operations access",
+      "permissions": ["employees.manage", "attendance.manage", "documents.manage"]
+    },
+    {
+      "id": 3,
+      "name": "manager",
+      "display_name": "Manager",
+      "description": "Team management access",
+      "permissions": ["leave.approve", "employees.view_subordinates"]
+    },
+    {
+      "id": 4,
+      "name": "employee",
+      "display_name": "Employee",
+      "description": "Basic employee access",
+      "permissions": ["profile.manage", "leave.request", "stickers.send"]
+    }
+  ]
+}
+```
+
+#### Assign Roles to User
+```http
+POST /admin/users/{id}/roles
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "roles": ["employee", "manager"]
+}
+```
+
+---
+
+### 11. Background Jobs (Admin only)
+
+#### List Scheduled Jobs
+```http
+GET /system/jobs
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": [
+    {
+      "id": "birthday_notification",
+      "name": "Birthday Notification",
+      "description": "Send daily birthday notifications",
+      "schedule": "0 9 * * *",
+      "next_run": "2024-10-21T09:00:00Z",
+      "last_run": "2024-10-20T09:00:00Z",
+      "last_status": "success",
+      "enabled": true
+    },
+    {
+      "id": "points_reset",
+      "name": "Annual Points Reset",
+      "description": "Reset employee points at the start of year",
+      "schedule": "0 0 1 1 *",
+      "next_run": "2025-01-01T00:00:00Z",
+      "last_run": "2024-01-01T00:00:00Z",
+      "last_status": "success",
+      "enabled": true
+    },
+    {
+      "id": "attendance_auto_confirm",
+      "name": "Attendance Auto-Confirm",
+      "description": "Auto-confirm pending attendance after deadline",
+      "schedule": "0 0 * * *",
+      "next_run": "2024-10-21T00:00:00Z",
+      "last_run": "2024-10-20T00:00:00Z",
+      "last_status": "success",
+      "enabled": true
+    },
+    {
+      "id": "attendance_reminder",
+      "name": "Attendance Confirmation Reminder",
+      "description": "Send reminder before confirmation deadline",
+      "schedule": "0 10 * * *",
+      "next_run": "2024-10-21T10:00:00Z",
+      "last_run": "2024-10-20T10:00:00Z",
+      "last_status": "success",
+      "enabled": true
+    }
+  ]
+}
+```
+
+#### Get Job Details
+```http
+GET /system/jobs/{id}
+Authorization: Bearer <token>
+```
+
+#### Update Job Schedule
+```http
+PUT /system/jobs/{id}
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "schedule": "0 8 * * *",
+  "enabled": true
+}
+```
+
+#### Get Job History
+```http
+GET /system/jobs/{id}/history?page=1&limit=20
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "job_id": "birthday_notification",
+      "started_at": "2024-10-20T09:00:00Z",
+      "completed_at": "2024-10-20T09:00:05Z",
+      "status": "success",
+      "details": {
+        "employees_notified": 3,
+        "emails_sent": 50
+      }
+    },
+    {
+      "id": 2,
+      "job_id": "birthday_notification",
+      "started_at": "2024-10-19T09:00:00Z",
+      "completed_at": "2024-10-19T09:00:03Z",
+      "status": "success",
+      "details": {
+        "employees_notified": 1,
+        "emails_sent": 50
+      }
+    }
+  ]
+}
+```
+
+#### Trigger Job Manually
+```http
+POST /system/jobs/{id}/run
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "message": "Job triggered successfully",
+  "execution_id": "exec_123456"
+}
 ```
 
 ---
