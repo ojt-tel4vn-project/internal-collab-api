@@ -22,6 +22,7 @@ type EmployeeService interface {
 	GetEmployeeByID(id uuid.UUID) (*employee.GetEmployeeResponse, error)
 	UpdateEmployee(id uuid.UUID, req *employee.UpdateEmployeeRequest) (*employee.UpdateEmployeeResponse, error)
 	DeleteEmployee(id uuid.UUID) error
+	GetTodayBirthdays() (*employee.ListBirthdayResponse, error)
 }
 
 type employeeServiceImpl struct {
@@ -325,4 +326,44 @@ func (s *employeeServiceImpl) DeleteEmployee(id uuid.UUID) error {
 
 	logger.Info("Employee deleted successfully", zap.String("employee_id", id.String()))
 	return nil
+}
+
+func (s *employeeServiceImpl) GetTodayBirthdays() (*employee.ListBirthdayResponse, error) {
+	today := time.Now()
+	month := int(today.Month())
+	day := today.Day()
+
+	employees, err := s.repo.FindEmployeesByBirthday(month, day)
+	if err != nil {
+		logger.Error("GetTodayBirthdays failed", zap.Error(err))
+		return nil, response.InternalServerError("Failed to fetch birthdays")
+	}
+
+	summaries := make([]employee.BirthdaySummary, len(employees))
+	for i, emp := range employees {
+		departmentName := ""
+		if emp.Department != nil {
+			departmentName = emp.Department.Name
+		}
+
+		summaries[i] = employee.BirthdaySummary{
+			ID:         emp.ID,
+			FullName:   emp.FullName,
+			Email:      emp.Email,
+			Department: departmentName,
+			Position:   emp.Position,
+			BirthDate:  emp.DateOfBirth.Format("2006-01-02"),
+		}
+	}
+
+	msg := "No birthdays today"
+	if len(summaries) > 0 {
+		msg = "Found birthdays today"
+	}
+
+	return &employee.ListBirthdayResponse{
+		Employees: summaries,
+		Total:     len(summaries),
+		Message:   msg,
+	}, nil
 }
