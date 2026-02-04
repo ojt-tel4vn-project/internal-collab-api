@@ -1092,6 +1092,43 @@ GET /documents?category_id=1&search=handbook&page=1&limit=20
 Authorization: Bearer <token>
 ```
 
+Request:
+```json
+{
+  "name": "Training Materials",
+  "description": "Employee training documents",
+  "parent_id": null
+}
+```
+
+#### Update Document Category (HR only)
+```http
+PUT /documents/categories/{id}
+Authorization: Bearer <token>
+```
+
+Request:
+```json
+{
+  "name": "Updated Category Name",
+  "description": "Updated description"
+}
+```
+
+#### Delete Document Category (HR only)
+```http
+DELETE /documents/categories/{id}
+Authorization: Bearer <token>
+```
+
+Note: Category can only be deleted if it has no documents.
+
+#### List Documents
+```http
+GET /documents?category_id=1&search=handbook&page=1&limit=20
+Authorization: Bearer <token>
+```
+
 #### Upload Document (HR only)
 ```http
 POST /documents
