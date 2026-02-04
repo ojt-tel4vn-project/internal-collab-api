@@ -22,16 +22,20 @@ RESTful API for Internal Collaboration System built with Golang and PostgreSQL.
 **API Spec:** OpenAPI 3.0.3
 
 ### Features
+Phúc
 - 🔐 JWT Authentication (Login, Refresh Token, Password Reset)
 - 👥 Employee Management (Onboard, Offboard, Profile, Subordinates)
-- 📅 Attendance Tracking (Upload, Confirm, Dispute, Auto-confirm)
-- 🏖️ Leave Management (Request, Approve via System/Email, Quota)
-- 🎁 Reward System (Points, Stickers, Leaderboard)
-- 📚 Document Management (Categories, Upload, Read Tracking)
 - 🔔 Notifications (In-app, Email, Preferences)
 - 👤 Admin & RBAC (User Management, Roles, Permissions)
 - 📝 Audit Logs (Action Tracking, Export)
 - ⚙️ Background Jobs (Birthday, Points Reset, Auto-confirm)
+
+Trung
+- 📅 Attendance Tracking (Upload, Confirm, Dispute, Auto-confirm)
+- 🏖️ Leave Management (Request, Approve via System/Email, Quota)
+- 🎁 Reward System (Points, Stickers, Leaderboard)
+- 📚 Document Management (Categories, Upload, Read Tracking)
+
 
 ---
 

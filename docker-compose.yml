@@ -18,5 +18,24 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build: .
+    container_name: internal_collab_api
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=internal_collab_db
+      - DB_PORT=5432
+      - SERVER_PORT=8080
+      # Add other keys from .env here or pass them through
+      - BREVO_API_KEY=${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}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
 volumes:
   postgres_data:
