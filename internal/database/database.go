@@ -6,6 +6,7 @@ import (
 
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/config"
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
+	docModels "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -34,5 +35,11 @@ func Connect(cfg *config.Config) error {
 }
 
 func Migrate() error {
-	return DB.AutoMigrate(&models.Todo{})
+	return DB.AutoMigrate(
+		&models.Employee{},
+		&models.Role{},
+		&models.Department{},
+		&docModels.Document{},
+		&docModels.DocumentRead{},
+	)
 }

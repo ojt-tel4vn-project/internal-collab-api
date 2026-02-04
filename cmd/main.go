@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/config"
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/database"
+	"github.com/ojt-tel4vn-project/internal-collab-api/internal/storage"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/email"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/logger"
@@ -51,6 +52,7 @@ func main() {
 	// Repositories
 	todoRepo := repository.NewTodoRepository(database.DB)
 	employeeRepo := repository.NewEmployeeRepository(database.DB)
+	documentRepo := repository.NewDocumentRepository(database.DB)
 
 	// Utils
 	jwtService := crypto.NewJWTService()
@@ -73,15 +75,30 @@ func main() {
 	todoService := services.NewTodoService(todoRepo)
 	authService := services.NewAuthService(employeeRepo, jwtService, passwordService)
 	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
+	storageService := storage.NewSupabaseStorage(
+		cfg.Supabase.URL,
+		cfg.Supabase.Bucket,
+		cfg.Supabase.APIKey,
+	)
+	documentService := services.NewDocumentService(documentRepo, storageService)
 
 	// Setup Chi router
 	router := chi.NewMux()
 
 	// Setup Huma API
-	api := humachi.New(router, huma.DefaultConfig("Internal Collab API", "1.0.0"))
+	humaConfig := huma.DefaultConfig("Internal Collab API", "1.0.0")
+	api := humachi.New(router, humaConfig)
 
 	// Register routes
-	routes.SetupRoutes(api, todoService, authService, employeeService, jwtService, employeeRepo)
+	routes.SetupRoutes(
+		api,
+		todoService,
+		authService,
+		employeeService,
+		jwtService,
+		employeeRepo,
+		documentService,
+	)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

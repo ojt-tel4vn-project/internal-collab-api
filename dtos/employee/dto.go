@@ -14,9 +14,9 @@ type CreateEmployeeRequest struct {
 	DateOfBirth  string     `json:"date_of_birth" binding:"required"` // Format: YYYY-MM-DD
 	Phone        string     `json:"phone"`
 	Address      string     `json:"address"`
-	DepartmentID *uuid.UUID `json:"department_id"`
+	DepartmentID *uuid.UUID `json:"department_id,omitempty"`
 	Position     string     `json:"position" binding:"required"`
-	ManagerID    *uuid.UUID `json:"manager_id"`
+	ManagerID    *uuid.UUID `json:"manager_id,omitempty"`
 	JoinDate     string     `json:"join_date"` // Format: YYYY-MM-DD, defaults to today
 }
 

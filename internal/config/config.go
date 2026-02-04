@@ -10,6 +10,13 @@ type Config struct {
 	Server   ServerConfig
 	JWT      JWTConfig
 	Email    EmailConfig
+	Supabase SupabaseConfig
+}
+
+type SupabaseConfig struct {
+	URL    string
+	Bucket string
+	APIKey string
 }
 
 type DatabaseConfig struct {
@@ -57,6 +64,11 @@ func Load() *Config {
 			BrevoAPIKey: getEnv("BREVO_API_KEY", ""),
 			FromEmail:   getEnv("EMAIL_FROM", "noreply@company.com"),
 			FromName:    getEnv("EMAIL_FROM_NAME", "Internal Collaboration System"),
+		},
+		Supabase: SupabaseConfig{
+			URL:    getEnv("SUPABASE_URL", ""),
+			Bucket: getEnv("SUPABASE_BUCKET", ""),
+			APIKey: getEnv("SUPABASE_API_KEY", ""),
 		},
 	}
 }
