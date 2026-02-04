@@ -9,6 +9,7 @@ import (
 type EmployeeRepository interface {
 	BaseRepository[models.Employee]
 	FindByEmail(email string) (*models.Employee, error)
+	FindEmployeesByBirthday(month, day int) ([]models.Employee, error)
 }
 
 type employeeRepository struct {
@@ -33,4 +34,10 @@ func (r *employeeRepository) FindByEmail(email string) (*models.Employee, error)
 	var employee models.Employee
 	err := r.db.Preload("Roles").Preload("Department").Where("email = ?", email).First(&employee).Error
 	return &employee, err
+}
+
+func (r *employeeRepository) FindEmployeesByBirthday(month, day int) ([]models.Employee, error) {
+	var employees []models.Employee
+	err := r.db.Where("EXTRACT(MONTH FROM date_of_birth) = ? AND EXTRACT(DAY FROM date_of_birth) = ?", month, day).Find(&employees).Error
+	return employees, err
 }

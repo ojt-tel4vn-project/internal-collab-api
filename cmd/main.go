@@ -74,6 +74,11 @@ func main() {
 	authService := services.NewAuthService(employeeRepo, jwtService, passwordService)
 	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
 
+	// Cron Service
+	cronService := services.NewCronService(employeeRepo, emailService)
+	cronService.Start()
+	defer cronService.Stop()
+
 	// Setup Chi router
 	router := chi.NewMux()
 

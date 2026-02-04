@@ -14,6 +14,7 @@ type EmailService interface {
 	SendWelcomeEmail(to, name, tempPassword string) error
 	SendPasswordResetEmail(to, name, resetLink string) error
 	SendPasswordChangedEmail(to, name string) error
+	SendBirthdayWish(to, name string) error
 }
 
 type brevoEmailService struct {
@@ -262,6 +263,70 @@ If you didn't change your password, please contact the IT security team immediat
 
 Best regards,
 Security Team
+	`, name)
+
+	return s.sendEmail(to, name, subject, htmlContent, textContent)
+}
+
+// SendBirthdayWish sends a happy birthday email
+func (s *brevoEmailService) SendBirthdayWish(to, name string) error {
+	subject := "🎂 Happy Birthday from the Team!"
+
+	htmlContent := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 20px auto; padding: 20px; background: #fff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #FF9A9E 0%%, #FECFEF 100%%); color: white; padding: 40px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { padding: 40px 30px; text-align: center; }
+        .message { font-size: 18px; margin: 20px 0; color: #555; }
+        .highlight { font-size: 24px; font-weight: bold; color: #FF6B6B; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 30px; color: #999; font-size: 12px; border-top: 1px solid #eee; padding-top: 20px; }
+        .emoji { font-size: 48px; margin-bottom: 20px; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Happy Birthday!</h1>
+        </div>
+        <div class="content">
+            <span class="emoji">🎉🎂🎈</span>
+            <h2>Dear %s,</h2>
+            
+            <p class="message">Wishing you a fantastic birthday filled with joy, laughter, and cake!</p>
+            
+            <div class="highlight">
+                Have an amazing day!
+            </div>
+            
+            <p class="message">We are lucky to have you on our team. Here's to another year of success and happiness.</p>
+            
+            <p>Best wishes,<br>
+            <strong>Your Colleagues</strong></p>
+        </div>
+        <div class="footer">
+            <p>Internal Collaboration System</p>
+        </div>
+    </div>
+</body>
+</html>
+	`, name)
+
+	textContent := fmt.Sprintf(`
+Happy Birthday from the Team!
+
+Dear %s,
+
+Wishing you a fantastic birthday filled with joy, laughter, and cake!
+Have an amazing day!
+
+We are lucky to have you on our team. Here's to another year of success and happiness.
+
+Best wishes,
+Your Colleagues
 	`, name)
 
 	return s.sendEmail(to, name, subject, htmlContent, textContent)

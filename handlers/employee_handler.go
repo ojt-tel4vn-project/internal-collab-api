@@ -35,7 +35,7 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		Method:      http.MethodPost,
 		Path:        "/api/v1/hr/employees",
 		Summary:     "Create an employee (HR only)",
-		Tags:        []string{"HR", "Employees"},
+		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
@@ -46,7 +46,7 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/hr/employees",
 		Summary:     "Get all employees (HR only)",
-		Tags:        []string{"HR", "Employees"},
+		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
@@ -57,7 +57,7 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/hr/employees/{id}",
 		Summary:     "Get employee by ID (HR only)",
-		Tags:        []string{"HR", "Employees"},
+		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
@@ -68,7 +68,7 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		Method:      http.MethodPut,
 		Path:        "/api/v1/hr/employees/{id}",
 		Summary:     "Update employee (HR only)",
-		Tags:        []string{"HR", "Employees"},
+		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
@@ -79,7 +79,7 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		Method:      http.MethodDelete,
 		Path:        "/api/v1/hr/employees/{id}",
 		Summary:     "Delete employee (HR only)",
-		Tags:        []string{"HR", "Employees"},
+		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
