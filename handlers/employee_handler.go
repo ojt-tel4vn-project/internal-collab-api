@@ -34,7 +34,7 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		Method:      http.MethodPost,
 		Path:        "/api/v1/hr/employees",
 		Summary:     "Create an employee (HR only)",
-		Tags:        []string{"HR", "Employees"},
+		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
@@ -45,7 +45,7 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/hr/employees",
 		Summary:     "Get all employees (HR only)",
-		Tags:        []string{"HR", "Employees"},
+		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
@@ -56,7 +56,7 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/hr/employees/{id}",
 		Summary:     "Get employee by ID (HR only)",
-		Tags:        []string{"HR", "Employees"},
+		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
@@ -67,7 +67,7 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		Method:      http.MethodPut,
 		Path:        "/api/v1/hr/employees/{id}",
 		Summary:     "Update employee (HR only)",
-		Tags:        []string{"HR", "Employees"},
+		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
@@ -78,11 +78,44 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		Method:      http.MethodDelete,
 		Path:        "/api/v1/hr/employees/{id}",
 		Summary:     "Delete employee (HR only)",
-		Tags:        []string{"HR", "Employees"},
+		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
 	}, h.DeleteEmployee)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-today-birthdays",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/hr/employees/birthdays/today",
+		Summary:     "Get employees with birthdays today (HR/Manager)",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.GetTodayBirthdays)
+}
+
+// validateHROrManagerAccess validates JWT and checks for HR or Manager role
+func (h *EmployeeHandler) validateHROrManagerAccess(authHeader string) error {
+	// Validate JWT
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return huma.Error401Unauthorized("Invalid authorization format")
+	}
+
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	claims, err := h.jwtService.ValidateToken(token)
+	if err != nil {
+		return huma.Error401Unauthorized("Invalid or expired token")
+	}
+
+	// Check HR or Manager role
+	err = authPkg.CheckRole(claims.UserID, h.employeeRepo, "hr", "manager", "admin")
+	if err != nil {
+		return huma.Error403Forbidden("Insufficient permissions. HR, Manager or Admin role required.")
+	}
+
+	return nil
 }
 
 func (h *EmployeeHandler) CreateEmployee(ctx context.Context, input *struct {
@@ -248,4 +281,24 @@ func (h *EmployeeHandler) DeleteEmployee(ctx context.Context, input *struct {
 			Message: "Employee deleted successfully",
 		},
 	}, nil
+}
+
+func (h *EmployeeHandler) GetTodayBirthdays(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+}) (*struct {
+	Body employee.ListBirthdayResponse
+}, error) {
+	// Validate HR/Manager access
+	if err := h.validateHROrManagerAccess(input.Authorization); err != nil {
+		return nil, err
+	}
+
+	resp, err := h.service.GetTodayBirthdays()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to fetch birthdays", err)
+	}
+
+	return &struct {
+		Body employee.ListBirthdayResponse
+	}{Body: *resp}, nil
 }

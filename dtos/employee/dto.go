@@ -106,3 +106,19 @@ type GetEmployeeResponse struct {
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
+
+// Check Birthday DTOs
+type ListBirthdayResponse struct {
+	Employees []BirthdaySummary `json:"employees"`
+	Total     int               `json:"total"`
+	Message   string            `json:"message"`
+}
+
+type BirthdaySummary struct {
+	ID         uuid.UUID `json:"id"`
+	FullName   string    `json:"full_name"`
+	Email      string    `json:"email"`
+	Department string    `json:"department"`
+	Position   string    `json:"position"`
+	BirthDate  string    `json:"birth_date"`
+}

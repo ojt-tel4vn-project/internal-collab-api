@@ -82,6 +82,11 @@ func main() {
 	)
 	documentService := services.NewDocumentService(documentRepo, storageService)
 
+	// Cron Service
+	cronService := services.NewCronService(employeeRepo, emailService)
+	cronService.Start()
+	defer cronService.Stop()
+
 	// Setup Chi router
 	router := chi.NewMux()
 
