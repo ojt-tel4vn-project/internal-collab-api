@@ -22,8 +22,11 @@ import (
 
 func main() {
 	// Load environment variables
+	// Try current directory first, then parent directory
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+		if err := godotenv.Load("../.env"); err != nil {
+			log.Println("No .env file found")
+		}
 	}
 
 	// Initialize Logger
@@ -53,6 +56,7 @@ func main() {
 	todoRepo := repository.NewTodoRepository(database.DB)
 	employeeRepo := repository.NewEmployeeRepository(database.DB)
 	documentRepo := repository.NewDocumentRepository(database.DB)
+	documentCategoryRepo := repository.NewDocumentCategoryRepository(database.DB)
 
 	// Utils
 	jwtService := crypto.NewJWTService()
@@ -81,7 +85,7 @@ func main() {
 		cfg.Supabase.APIKey,
 	)
 	documentService := services.NewDocumentService(documentRepo, storageService)
-
+	categoryService := services.NewDocumentCategoryService(documentCategoryRepo)
 	// Cron Service
 	cronService := services.NewCronService(employeeRepo, emailService)
 	cronService.Start()
@@ -103,6 +107,7 @@ func main() {
 		jwtService,
 		employeeRepo,
 		documentService,
+		categoryService,
 	)
 
 	// Start server

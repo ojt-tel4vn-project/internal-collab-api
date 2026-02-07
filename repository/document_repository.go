@@ -14,6 +14,7 @@ type DocumentRepository interface {
 	MarkAsRead(documentID, employeeID uuid.UUID) error
 	GetReaders(docID uuid.UUID) ([]uuid.UUID, error)
 	Exists(docID uuid.UUID) (bool, error)
+	FindByID(docID uuid.UUID) (*models.Document, error)
 }
 
 type documentRepositoryImpl struct {
@@ -56,4 +57,13 @@ func (r *documentRepositoryImpl) Exists(docID uuid.UUID) (bool, error) {
 		Where("id = ?", docID).
 		Count(&count).Error
 	return count > 0, err
+}
+
+func (r *documentRepositoryImpl) FindByID(docID uuid.UUID) (*models.Document, error) {
+	var document models.Document
+	err := r.db.First(&document, "id = ?", docID).Error
+	if err != nil {
+		return nil, err
+	}
+	return &document, nil
 }

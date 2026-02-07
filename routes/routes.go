@@ -16,6 +16,7 @@ func SetupRoutes(
 	jwtService crypto.JWTService,
 	employeeRepo repository.EmployeeRepository,
 	documentService services.DocumentService,
+	categoryService services.DocumentCategoryService,
 ) {
 	// Todo Routes
 	todoHandler := handlers.NewTodoHandler(todoService)
@@ -30,6 +31,6 @@ func SetupRoutes(
 	employeeHandler.RegisterRoutes(api)
 
 	// Document Routes (with JWT service and employee repo for role checking)
-	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo)
+	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo, categoryService)
 	documentHandler.RegisterRoutes(api)
 }

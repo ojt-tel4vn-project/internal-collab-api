@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
@@ -29,16 +31,20 @@ var AllowedMimeTypes = map[string]bool{
 }
 
 type DocumentHandler struct {
-	service      services.DocumentService
-	jwtService   crypto.JWTService
-	employeeRepo repository.EmployeeRepository
+	service         services.DocumentService
+	jwtService      crypto.JWTService
+	employeeRepo    repository.EmployeeRepository
+	categoryService services.DocumentCategoryService
 }
 
-func NewDocumentHandler(service services.DocumentService, jwtService crypto.JWTService, employeeRepo repository.EmployeeRepository) *DocumentHandler {
+// FileOutput không cần thiết nữa - dùng huma.StreamResponse thay thế
+
+func NewDocumentHandler(service services.DocumentService, jwtService crypto.JWTService, employeeRepo repository.EmployeeRepository, categoryService services.DocumentCategoryService) *DocumentHandler {
 	return &DocumentHandler{
-		service:      service,
-		jwtService:   jwtService,
-		employeeRepo: employeeRepo,
+		service:         service,
+		jwtService:      jwtService,
+		employeeRepo:    employeeRepo,
+		categoryService: categoryService,
 	}
 }
 
@@ -76,6 +82,61 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 			{"bearerAuth": {}},
 		},
 	}, h.ReadDocument)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "view-document",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/documents/{id}/view",
+		Summary:     "View document",
+		Tags:        []string{"Documents"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+		Responses: map[string]*huma.Response{
+			"200": {
+				Description: "File stream",
+				Content: map[string]*huma.MediaType{
+					"application/pdf":          {},
+					"image/png":                {},
+					"image/jpeg":               {},
+					"application/octet-stream": {},
+				},
+			},
+		},
+	}, h.ViewDocument)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "download-document",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/documents/{id}/download",
+		Summary:     "Download document",
+		Tags:        []string{"Documents"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+		Responses: map[string]*huma.Response{
+			"200": {
+				Description: "File stream",
+				Content: map[string]*huma.MediaType{
+					"application/pdf":          {},
+					"image/png":                {},
+					"image/jpeg":               {},
+					"application/octet-stream": {},
+				},
+			},
+		},
+	}, h.DownloadDocument)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "create-document-category",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/hr/document-category",
+		Summary:     "Create document category (HR only)",
+		Tags:        []string{"Documents", "HR"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.CreateDocumentCategory)
 }
 
 func (h *DocumentHandler) CreateDocument(
@@ -250,4 +311,127 @@ func (h *DocumentHandler) ReadDocument(
 			Message: "Document marked as read",
 		},
 	}, nil
+}
+
+func (h *DocumentHandler) CreateDocumentCategory(
+	ctx context.Context,
+	input *struct {
+		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+		Body          struct {
+			Name     string     `json:"name" required:"true"`
+			ParentID *uuid.UUID `json:"parent_id,omitempty"`
+		}
+	},
+) (*struct{ Body models.DocumentCategory }, error) {
+	// Validate HR access
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			Roles: []string{"hr", "admin"},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	category := models.DocumentCategory{
+		Name:     input.Body.Name,
+		ParentID: input.Body.ParentID,
+	}
+	result, err := h.categoryService.Create(category.Name, category.ParentID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to create document category", err)
+	}
+	return &struct{ Body models.DocumentCategory }{Body: *result}, nil
+}
+
+func (h *DocumentHandler) serveDocumentFile(docID uuid.UUID, inline bool) (*huma.StreamResponse, error) {
+	doc, err := h.service.FindByID(docID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Document not found")
+	}
+
+	disposition := "attachment"
+	if inline {
+		disposition = "inline"
+	}
+	filename := doc.Title + filepath.Ext(doc.FilePath)
+
+	// Detect content type from file extension
+	ext := strings.ToLower(filepath.Ext(doc.FilePath))
+	contentTypeMap := map[string]string{
+		".pdf":  "application/pdf",
+		".png":  "image/png",
+		".jpg":  "image/jpeg",
+		".jpeg": "image/jpeg",
+		".doc":  "application/msword",
+		".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	}
+	contentType := contentTypeMap[ext]
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	return &huma.StreamResponse{
+		Body: func(ctx huma.Context) {
+			resp, err := http.Get(doc.FilePath)
+			if err != nil {
+				ctx.SetStatus(http.StatusInternalServerError)
+				return
+			}
+			defer resp.Body.Close()
+
+			ctx.SetHeader("Content-Type", contentType)
+			ctx.SetHeader("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, filename))
+
+			// Stream file to response
+			io.Copy(ctx.BodyWriter(), resp.Body)
+		},
+	}, nil
+}
+
+func (h *DocumentHandler) ViewDocument(
+	ctx context.Context,
+	input *struct {
+		Authorization string    `header:"Authorization" required:"true" doc:"Bearer token"`
+		ID            uuid.UUID `path:"id" required:"true"`
+	},
+) (*huma.StreamResponse, error) {
+	claims, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			RequireActive: true,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	// Auto mark as read
+	_ = h.service.Read(input.ID, claims.UserID)
+	return h.serveDocumentFile(input.ID, true)
+}
+
+func (h *DocumentHandler) DownloadDocument(
+	ctx context.Context,
+	input *struct {
+		Authorization string    `header:"Authorization" required:"true" doc:"Bearer token"`
+		ID            uuid.UUID `path:"id" required:"true"`
+	},
+) (*huma.StreamResponse, error) {
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			RequireActive: true,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return h.serveDocumentFile(input.ID, false)
 }

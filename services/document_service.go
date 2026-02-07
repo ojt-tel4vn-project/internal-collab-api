@@ -16,6 +16,7 @@ type DocumentService interface {
 	List() ([]models.Document, error)
 	Read(docID, employeeID uuid.UUID) error
 	UploadFile(ctx context.Context, path string, file io.Reader) (string, error)
+	FindByID(docID uuid.UUID) (*models.Document, error)
 }
 
 type documentServiceImpl struct {
@@ -59,4 +60,8 @@ func (s *documentServiceImpl) UploadFile(
 	file io.Reader,
 ) (string, error) {
 	return s.storage.UploadFile(ctx, path, file)
+}
+
+func (s *documentServiceImpl) FindByID(docID uuid.UUID) (*models.Document, error) {
+	return s.repo.FindByID(docID)
 }
