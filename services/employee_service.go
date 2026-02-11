@@ -12,6 +12,7 @@ import (
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/email"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/logger"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/response"
+	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/utils"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
 	"go.uber.org/zap"
 )
@@ -23,6 +24,7 @@ type EmployeeService interface {
 	UpdateEmployee(id uuid.UUID, req *employee.UpdateEmployeeRequest) (*employee.UpdateEmployeeResponse, error)
 	DeleteEmployee(id uuid.UUID) error
 	GetTodayBirthdays() (*employee.ListBirthdayResponse, error)
+	GetSubordinates(managerID uuid.UUID) (*employee.ListSubordinatesResponse, error)
 }
 
 type employeeServiceImpl struct {
@@ -84,7 +86,12 @@ func (s *employeeServiceImpl) CreateEmployee(req *employee.CreateEmployeeRequest
 	}
 
 	// Generate employee code
-	employeeCode := "EMP-" + uuid.NewString()[:8]
+	// Default prefix EMP, or could be derived from department/role
+	employeeCode, err := utils.GenerateEmployeeCode("EMP")
+	if err != nil {
+		logger.Error("CreateEmployee failed: code generation error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to generate employee code")
+	}
 
 	// Create employee model
 	newEmployee := models.Employee{
@@ -365,5 +372,48 @@ func (s *employeeServiceImpl) GetTodayBirthdays() (*employee.ListBirthdayRespons
 		Employees: summaries,
 		Total:     len(summaries),
 		Message:   msg,
+	}, nil
+}
+
+func (s *employeeServiceImpl) GetSubordinates(managerID uuid.UUID) (*employee.ListSubordinatesResponse, error) {
+	// Find manager info first
+	manager, err := s.repo.FindByID(managerID)
+	if err != nil {
+		logger.Warn("GetSubordinates failed: manager not found", zap.String("id", managerID.String()))
+		return nil, response.NotFound("Manager not found")
+	}
+
+	subordinates, err := s.repo.FindSubordinates(managerID)
+	if err != nil {
+		logger.Error("GetSubordinates failed", zap.Error(err))
+		return nil, response.InternalServerError("Failed to fetch subordinates")
+	}
+
+	summaryList := make([]employee.SubordinateSummary, len(subordinates))
+	for i, sub := range subordinates {
+		deptName := "N/A"
+		if sub.Department != nil {
+			deptName = sub.Department.Name
+		}
+		summaryList[i] = employee.SubordinateSummary{
+			ID:           sub.ID,
+			EmployeeCode: sub.EmployeeCode,
+			FullName:     sub.FullName,
+			Email:        sub.Email,
+			Position:     sub.Position,
+			Department:   deptName,
+			Status:       string(sub.Status),
+			AvatarUrl:    sub.AvatarUrl,
+		}
+	}
+
+	return &employee.ListSubordinatesResponse{
+		Manager: employee.SubordinateManagerRaw{
+			ID:       manager.ID,
+			FullName: manager.FullName,
+			Position: manager.Position,
+		},
+		Subordinates: summaryList,
+		Total:        len(summaryList),
 	}, nil
 }

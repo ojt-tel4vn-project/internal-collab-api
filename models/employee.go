@@ -41,8 +41,13 @@ type Employee struct {
 	// System
 	Status      Status     `gorm:"type:varchar(20);default:'active'" json:"status"`
 	LastLoginAt *time.Time `gorm:"type:timestamp" json:"last_login_at"`
-	CreatedAt   time.Time  `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt   time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+
+	// Password Reset
+	PasswordResetToken     *string    `gorm:"type:varchar(255)" json:"-"`
+	PasswordResetExpiresAt *time.Time `gorm:"type:timestamp" json:"-"`
+
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
 	// Relations
 	Roles []Role `gorm:"many2many:employee_roles;" json:"roles,omitempty"`

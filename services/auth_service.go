@@ -1,10 +1,13 @@
 package services
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/ojt-tel4vn-project/internal-collab-api/dtos/auth"
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
+	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/email"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/logger"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/response"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
@@ -13,25 +16,33 @@ import (
 
 type AuthService interface {
 	Login(req *auth.LoginRequest) (*auth.LoginResponse, error)
+	RefreshToken(req *auth.RefreshTokenRequest) (*auth.RefreshTokenResponse, error)
 	ChangePassword(employeeID uuid.UUID, req *auth.ChangePasswordRequest) (*auth.ChangePasswordResponse, error)
 	FirstTimeSetup(email string, req *auth.FirstTimeSetupRequest) (*auth.FirstTimeSetupResponse, error)
+	ForgotPassword(req *auth.ForgotPasswordRequest) (*auth.ForgotPasswordResponse, error)
 }
 
 type authServiceImpl struct {
-	employeeRepo repository.EmployeeRepository
-	jwtService   crypto.JWTService
-	password     crypto.PasswordService
+	employeeRepo     repository.EmployeeRepository
+	refreshTokenRepo repository.RefreshTokenRepository
+	jwtService       crypto.JWTService
+	password         crypto.PasswordService
+	emailService     email.EmailService
 }
 
 func NewAuthService(
 	employeeRepo repository.EmployeeRepository,
+	refreshTokenRepo repository.RefreshTokenRepository,
 	jwtService crypto.JWTService,
 	password crypto.PasswordService,
+	emailService email.EmailService,
 ) AuthService {
 	return &authServiceImpl{
-		employeeRepo: employeeRepo,
-		jwtService:   jwtService,
-		password:     password,
+		employeeRepo:     employeeRepo,
+		refreshTokenRepo: refreshTokenRepo,
+		jwtService:       jwtService,
+		password:         password,
+		emailService:     emailService,
 	}
 }
 
@@ -51,14 +62,32 @@ func (s *authServiceImpl) Login(req *auth.LoginRequest) (*auth.LoginResponse, er
 	// Check if this is first-time login (password starts with "TEMP_")
 	requirePasswordChange := len(employee.PasswordHash) > 5 && employee.PasswordHash[:5] == "TEMP_"
 
-	token, err := s.jwtService.GenerateToken(employee.ID, employee.FullName, employee.Email, 24)
+	token, err := s.jwtService.GenerateToken(employee.ID, employee.FullName, employee.Email, 1) // 1 hour expiration
 	if err != nil {
 		logger.Error("Login failed: token generation error", zap.Error(err))
 		return nil, response.InternalServerError("Failed to generate access token")
 	}
 
+	refreshTokenString, err := crypto.GenerateRandomToken(32)
+	if err != nil {
+		logger.Error("Login failed: refresh token generation error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to generate refresh token")
+	}
+
+	refreshToken := &models.RefreshToken{
+		UserID:    employee.ID,
+		Token:     refreshTokenString,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7 days
+	}
+
+	if err := s.refreshTokenRepo.Create(refreshToken); err != nil {
+		logger.Error("Login failed: refresh token save error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to save refresh token")
+	}
+
 	return &auth.LoginResponse{
 		AccessToken:           token,
+		RefreshToken:          refreshTokenString,
 		TokenType:             "Bearer",
 		RequirePasswordChange: requirePasswordChange,
 		User: struct {
@@ -74,6 +103,59 @@ func (s *authServiceImpl) Login(req *auth.LoginRequest) (*auth.LoginResponse, er
 			EmployeeCode: employee.EmployeeCode,
 			Status:       string(employee.Status),
 		},
+	}, nil
+}
+
+func (s *authServiceImpl) RefreshToken(req *auth.RefreshTokenRequest) (*auth.RefreshTokenResponse, error) {
+	// Find refresh token
+	storedToken, err := s.refreshTokenRepo.FindByToken(req.RefreshToken)
+	if err != nil {
+		logger.Warn("RefreshToken failed: invalid or expired token")
+		return nil, response.Unauthorized("Invalid or expired refresh token")
+	}
+
+	// Revoke the used token (Rotation)
+	if err := s.refreshTokenRepo.Revoke(storedToken.Token); err != nil {
+		logger.Error("RefreshToken failed: revocation error", zap.Error(err))
+		// We could continue, but it's safer to error out or just log
+	}
+
+	// Get user to generate new claims
+	employee, err := s.employeeRepo.FindByID(storedToken.UserID)
+	if err != nil {
+		logger.Warn("RefreshToken failed: user not found", zap.String("id", storedToken.UserID.String()))
+		return nil, response.Unauthorized("User not found")
+	}
+
+	// Generate new access token
+	newAccessToken, err := s.jwtService.GenerateToken(employee.ID, employee.FullName, employee.Email, 1)
+	if err != nil {
+		logger.Error("RefreshToken failed: token generation error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to generate access token")
+	}
+
+	// Generate new refresh token
+	newRefreshTokenString, err := crypto.GenerateRandomToken(32)
+	if err != nil {
+		logger.Error("RefreshToken failed: refresh token generation error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to generate refresh token")
+	}
+
+	newRefreshToken := &models.RefreshToken{
+		UserID:    employee.ID,
+		Token:     newRefreshTokenString,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+
+	if err := s.refreshTokenRepo.Create(newRefreshToken); err != nil {
+		logger.Error("RefreshToken failed: refresh token save error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to save refresh token")
+	}
+
+	return &auth.RefreshTokenResponse{
+		AccessToken:  newAccessToken,
+		RefreshToken: newRefreshTokenString,
+		TokenType:    "Bearer",
 	}, nil
 }
 
@@ -158,5 +240,49 @@ func (s *authServiceImpl) FirstTimeSetup(email string, req *auth.FirstTimeSetupR
 		Message:     "Account setup completed successfully",
 		AccessToken: token,
 		TokenType:   "Bearer",
+	}, nil
+}
+
+func (s *authServiceImpl) ForgotPassword(req *auth.ForgotPasswordRequest) (*auth.ForgotPasswordResponse, error) {
+	// Find employee
+	employee, err := s.employeeRepo.FindByEmail(req.Email)
+	if err != nil {
+		// Don't reveal if user exists
+		logger.Warn("ForgotPassword: user not found", zap.String("email", req.Email))
+		return &auth.ForgotPasswordResponse{
+			Message: "If your email is registered, you will receive a password reset link",
+		}, nil
+	}
+
+	// Generate reset token
+	token, err := crypto.GenerateRandomToken(32)
+	if err != nil {
+		logger.Error("ForgotPassword failed: token generation error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to process request")
+	}
+
+	// Save token to database
+	expiration := time.Now().Add(1 * time.Hour)
+	employee.PasswordResetToken = &token
+	employee.PasswordResetExpiresAt = &expiration
+
+	if err := s.employeeRepo.Update(employee); err != nil {
+		logger.Error("ForgotPassword failed: database update error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to process request")
+	}
+
+	// Send email
+	resetLink := "http://localhost:3000/reset-password?token=" + token
+	if s.emailService != nil {
+		err := s.emailService.SendPasswordResetEmail(employee.Email, employee.FullName, resetLink)
+		if err != nil {
+			logger.Error("ForgotPassword failed: email sending error", zap.Error(err))
+		}
+	}
+
+	logger.Info("Password reset email sent", zap.String("email", req.Email))
+
+	return &auth.ForgotPasswordResponse{
+		Message: "If your email is registered, you will receive a password reset link",
 	}, nil
 }

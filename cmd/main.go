@@ -49,12 +49,21 @@ func main() {
 
 	// Initialize dependencies
 	// Repositories
-	todoRepo := repository.NewTodoRepository(database.DB)
+
 	employeeRepo := repository.NewEmployeeRepository(database.DB)
+	refreshTokenRepo := repository.NewRefreshTokenRepository(database.DB)
 
 	// Utils
 	jwtService := crypto.NewJWTService()
 	passwordService := crypto.NewPasswordService()
+
+	// Audit Log
+	auditLogRepo := repository.NewAuditLogRepository(database.DB)
+	auditLogService := services.NewAuditLogService(auditLogRepo)
+
+	// Notifications
+	notificationRepo := repository.NewNotificationRepository(database.DB)
+	notificationService := services.NewNotificationService(notificationRepo)
 
 	// Email Service
 	var emailService email.EmailService
@@ -70,12 +79,12 @@ func main() {
 	}
 
 	// Services
-	todoService := services.NewTodoService(todoRepo)
-	authService := services.NewAuthService(employeeRepo, jwtService, passwordService)
+
+	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService)
 	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
 
 	// Cron Service
-	cronService := services.NewCronService(employeeRepo, emailService)
+	cronService := services.NewCronService(employeeRepo, emailService, notificationService)
 	cronService.Start()
 	defer cronService.Stop()
 
@@ -86,7 +95,7 @@ func main() {
 	api := humachi.New(router, huma.DefaultConfig("Internal Collab API", "1.0.0"))
 
 	// Register routes
-	routes.SetupRoutes(api, todoService, authService, employeeService, jwtService, employeeRepo)
+	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)
