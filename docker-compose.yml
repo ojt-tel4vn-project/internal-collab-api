@@ -31,7 +31,7 @@ services:
       - DB_PORT=5432
       - SERVER_PORT=8080
       # Add other keys from .env here or pass them through
-      - BREVO_API_KEY=${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}
+      - BREVO_API_KEY=$
     depends_on:
       postgres:
         condition: service_healthy
