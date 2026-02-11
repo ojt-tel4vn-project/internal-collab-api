@@ -21,8 +21,11 @@ import (
 
 func main() {
 	// Load environment variables
+	// Try current directory first, then parent directory
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+		if err := godotenv.Load("../.env"); err != nil {
+			log.Println("No .env file found")
+		}
 	}
 
 	// Initialize Logger
@@ -81,6 +84,8 @@ func main() {
 	// Services
 
 	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService)
+
+	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService)
 	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
 
 	// Cron Service
@@ -92,7 +97,8 @@ func main() {
 	router := chi.NewMux()
 
 	// Setup Huma API
-	api := humachi.New(router, huma.DefaultConfig("Internal Collab API", "1.0.0"))
+	humaConfig := huma.DefaultConfig("Internal Collab API", "1.0.0")
+	api := humachi.New(router, humaConfig)
 
 	// Register routes
 	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo)

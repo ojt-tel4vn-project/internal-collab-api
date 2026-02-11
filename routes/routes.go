@@ -14,8 +14,12 @@ func SetupRoutes(
 	employeeService services.EmployeeService,
 	auditLogService services.AuditLogService,
 	notificationService services.NotificationService,
+	auditLogService services.AuditLogService,
+	notificationService services.NotificationService,
 	jwtService crypto.JWTService,
 	employeeRepo repository.EmployeeRepository,
+	documentService services.DocumentService,
+	categoryService services.DocumentCategoryService,
 ) {
 	// Auth Routes (with JWT service)
 	authHandler := handlers.NewAuthHandler(authService, jwtService)
