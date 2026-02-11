@@ -95,6 +95,17 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 			{"bearerAuth": {}},
 		},
 	}, h.GetTodayBirthdays)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-subordinates",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/employees/subordinates",
+		Summary:     "Get subordinates for current manager",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.GetSubordinates)
 }
 
 // validateHROrManagerAccess validates JWT and checks for HR or Manager role
@@ -283,5 +294,35 @@ func (h *EmployeeHandler) GetTodayBirthdays(ctx context.Context, input *struct {
 
 	return &struct {
 		Body employee.ListBirthdayResponse
+	}{Body: *resp}, nil
+}
+
+func (h *EmployeeHandler) GetSubordinates(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+}) (*struct {
+	Body employee.ListSubordinatesResponse
+}, error) {
+	// Validate JWT
+	if !strings.HasPrefix(input.Authorization, "Bearer ") {
+		return nil, huma.Error401Unauthorized("Invalid authorization format")
+	}
+
+	token := strings.TrimPrefix(input.Authorization, "Bearer ")
+	claims, err := h.jwtService.ValidateToken(token)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Invalid or expired token")
+	}
+
+	// Fetch subordinates using the ID from the token (the manager's ID)
+	resp, err := h.service.GetSubordinates(claims.UserID)
+	if err != nil {
+		if strings.Contains(err.Error(), "Manager not found") {
+			return nil, huma.Error404NotFound("Manager not found", err)
+		}
+		return nil, huma.Error500InternalServerError("Failed to fetch subordinates", err)
+	}
+
+	return &struct {
+		Body employee.ListSubordinatesResponse
 	}{Body: *resp}, nil
 }

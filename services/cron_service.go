@@ -3,6 +3,7 @@ package services
 import (
 	"time"
 
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/email"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/logger"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
@@ -16,17 +17,19 @@ type CronService interface {
 }
 
 type cronService struct {
-	cron         *cron.Cron
-	employeeRepo repository.EmployeeRepository
-	emailService email.EmailService
+	cron                *cron.Cron
+	employeeRepo        repository.EmployeeRepository
+	emailService        email.EmailService
+	notificationService NotificationService
 }
 
-func NewCronService(employeeRepo repository.EmployeeRepository, emailService email.EmailService) CronService {
+func NewCronService(employeeRepo repository.EmployeeRepository, emailService email.EmailService, notificationService NotificationService) CronService {
 	c := cron.New()
 	s := &cronService{
-		cron:         c,
-		employeeRepo: employeeRepo,
-		emailService: emailService,
+		cron:                c,
+		employeeRepo:        employeeRepo,
+		emailService:        emailService,
+		notificationService: notificationService,
 	}
 
 	// Add jobs
@@ -75,6 +78,21 @@ func (s *cronService) checkBirthdays() {
 				logger.Error("Failed to send birthday email", zap.String("email", emp.Email), zap.Error(err))
 			} else {
 				logger.Info("Sent birthday wish", zap.String("email", emp.Email))
+			}
+		}
+
+		if s.notificationService != nil {
+			err := s.notificationService.SendNotification(
+				emp.ID,
+				"birthday",
+				"Happy Birthday!",
+				"Wishing you a fantastic birthday filled with joy!",
+				nil,
+				nil,
+				models.PriorityHigh,
+			)
+			if err != nil {
+				logger.Error("Failed to send birthday notification", zap.String("id", emp.ID.String()), zap.Error(err))
 			}
 		}
 	}

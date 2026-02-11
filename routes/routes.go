@@ -10,21 +10,27 @@ import (
 
 func SetupRoutes(
 	api huma.API,
-	todoService services.TodoService,
 	authService services.AuthService,
 	employeeService services.EmployeeService,
+	auditLogService services.AuditLogService,
+	notificationService services.NotificationService,
 	jwtService crypto.JWTService,
 	employeeRepo repository.EmployeeRepository,
 ) {
-	// Todo Routes
-	todoHandler := handlers.NewTodoHandler(todoService)
-	todoHandler.RegisterRoutes(api)
-
 	// Auth Routes (with JWT service)
 	authHandler := handlers.NewAuthHandler(authService, jwtService)
 	authHandler.RegisterRoutes(api)
 
 	// Employee Routes (with JWT service and employee repo for role checking)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService, jwtService, employeeRepo)
+
 	employeeHandler.RegisterRoutes(api)
+
+	// Audit Log Routes (Admin only)
+	auditLogHandler := handlers.NewAuditLogHandler(auditLogService, jwtService, employeeRepo)
+	auditLogHandler.RegisterRoutes(api)
+
+	// Notification Routes
+	notificationHandler := handlers.NewNotificationHandler(notificationService, jwtService)
+	notificationHandler.RegisterRoutes(api)
 }

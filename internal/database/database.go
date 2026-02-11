@@ -23,7 +23,10 @@ func Connect(cfg *config.Config) error {
 		cfg.Database.SSLMode,
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true, // Disables implicit prepared statement usage
+	}), &gorm.Config{})
 	if err != nil {
 		return fmt.Errorf("failed to connect database: %w", err)
 	}
@@ -34,5 +37,12 @@ func Connect(cfg *config.Config) error {
 }
 
 func Migrate() error {
-	return DB.AutoMigrate(&models.Todo{})
+	return DB.AutoMigrate(
+		&models.Department{},
+		&models.Role{},
+		&models.Employee{},
+		&models.RefreshToken{},
+		&models.AuditLog{},
+		&models.Notification{},
+	)
 }
