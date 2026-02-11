@@ -130,28 +130,6 @@ func (h *EmployeeHandler) validateHROrManagerAccess(authHeader string) error {
 	return nil
 }
 
-// validateHRAccess validates JWT and checks for HR role
-func (h *EmployeeHandler) validateHRAccess(authHeader string) error {
-	// Validate JWT
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return huma.Error401Unauthorized("Invalid authorization format")
-	}
-
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-	claims, err := h.jwtService.ValidateToken(token)
-	if err != nil {
-		return huma.Error401Unauthorized("Invalid or expired token")
-	}
-
-	// Check HR role
-	err = authPkg.CheckRole(claims.UserID, h.employeeRepo, "hr", "admin")
-	if err != nil {
-		return huma.Error403Forbidden("Insufficient permissions. HR or Admin role required.")
-	}
-
-	return nil
-}
-
 func (h *EmployeeHandler) CreateEmployee(ctx context.Context, input *struct {
 	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 	Body          employee.CreateEmployeeRequest
@@ -159,7 +137,15 @@ func (h *EmployeeHandler) CreateEmployee(ctx context.Context, input *struct {
 	Body employee.CreateEmployeeResponse
 }, error) {
 	// Validate HR access
-	if err := h.validateHRAccess(input.Authorization); err != nil {
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			Roles: []string{"hr", "admin"},
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -178,7 +164,15 @@ func (h *EmployeeHandler) GetAllEmployees(ctx context.Context, input *struct {
 	Body employee.ListEmployeesResponse
 }, error) {
 	// Validate HR access
-	if err := h.validateHRAccess(input.Authorization); err != nil {
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			Roles: []string{"hr", "admin"},
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -198,7 +192,15 @@ func (h *EmployeeHandler) GetEmployeeByID(ctx context.Context, input *struct {
 	Body employee.GetEmployeeResponse
 }, error) {
 	// Validate HR access
-	if err := h.validateHRAccess(input.Authorization); err != nil {
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			Roles: []string{"hr", "admin"},
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -223,7 +225,15 @@ func (h *EmployeeHandler) UpdateEmployee(ctx context.Context, input *struct {
 	Body employee.UpdateEmployeeResponse
 }, error) {
 	// Validate HR access
-	if err := h.validateHRAccess(input.Authorization); err != nil {
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			Roles: []string{"hr", "admin"},
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -251,7 +261,15 @@ func (h *EmployeeHandler) DeleteEmployee(ctx context.Context, input *struct {
 	}
 }, error) {
 	// Validate HR access
-	if err := h.validateHRAccess(input.Authorization); err != nil {
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			Roles: []string{"hr", "admin"},
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 

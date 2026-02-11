@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/config"
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/database"
+	"github.com/ojt-tel4vn-project/internal-collab-api/internal/storage"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/email"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/logger"
@@ -21,8 +22,11 @@ import (
 
 func main() {
 	// Load environment variables
+	// Try current directory first, then parent directory
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+		if err := godotenv.Load("../.env"); err != nil {
+			log.Println("No .env file found")
+		}
 	}
 
 	// Initialize Logger
@@ -51,7 +55,8 @@ func main() {
 	// Repositories
 
 	employeeRepo := repository.NewEmployeeRepository(database.DB)
-	refreshTokenRepo := repository.NewRefreshTokenRepository(database.DB)
+	documentRepo := repository.NewDocumentRepository(database.DB)
+	documentCategoryRepo := repository.NewDocumentCategoryRepository(database.DB)
 
 	// Utils
 	jwtService := crypto.NewJWTService()
@@ -82,7 +87,13 @@ func main() {
 
 	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService)
 	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
-
+	storageService := storage.NewSupabaseStorage(
+		cfg.Supabase.URL,
+		cfg.Supabase.Bucket,
+		cfg.Supabase.APIKey,
+	)
+	documentService := services.NewDocumentService(documentRepo, storageService)
+	categoryService := services.NewDocumentCategoryService(documentCategoryRepo)
 	// Cron Service
 	cronService := services.NewCronService(employeeRepo, emailService, notificationService)
 	cronService.Start()
@@ -92,9 +103,20 @@ func main() {
 	router := chi.NewMux()
 
 	// Setup Huma API
-	api := humachi.New(router, huma.DefaultConfig("Internal Collab API", "1.0.0"))
+	humaConfig := huma.DefaultConfig("Internal Collab API", "1.0.0")
+	api := humachi.New(router, humaConfig)
 
 	// Register routes
+	routes.SetupRoutes(
+		api,
+		todoService,
+		authService,
+		employeeService,
+		jwtService,
+		employeeRepo,
+		documentService,
+		categoryService,
+	)
 	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo)
 
 	// Start server

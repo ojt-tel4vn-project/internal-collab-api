@@ -16,6 +16,8 @@ func SetupRoutes(
 	notificationService services.NotificationService,
 	jwtService crypto.JWTService,
 	employeeRepo repository.EmployeeRepository,
+	documentService services.DocumentService,
+	categoryService services.DocumentCategoryService,
 ) {
 	// Auth Routes (with JWT service)
 	authHandler := handlers.NewAuthHandler(authService, jwtService)
@@ -26,6 +28,9 @@ func SetupRoutes(
 
 	employeeHandler.RegisterRoutes(api)
 
+	// Document Routes (with JWT service and employee repo for role checking)
+	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo, categoryService)
+	documentHandler.RegisterRoutes(api)
 	// Audit Log Routes (Admin only)
 	auditLogHandler := handlers.NewAuditLogHandler(auditLogService, jwtService, employeeRepo)
 	auditLogHandler.RegisterRoutes(api)
