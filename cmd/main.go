@@ -53,7 +53,7 @@ func main() {
 
 	// Initialize dependencies
 	// Repositories
-	todoRepo := repository.NewTodoRepository(database.DB)
+
 	employeeRepo := repository.NewEmployeeRepository(database.DB)
 	documentRepo := repository.NewDocumentRepository(database.DB)
 	documentCategoryRepo := repository.NewDocumentCategoryRepository(database.DB)
@@ -61,6 +61,14 @@ func main() {
 	// Utils
 	jwtService := crypto.NewJWTService()
 	passwordService := crypto.NewPasswordService()
+
+	// Audit Log
+	auditLogRepo := repository.NewAuditLogRepository(database.DB)
+	auditLogService := services.NewAuditLogService(auditLogRepo)
+
+	// Notifications
+	notificationRepo := repository.NewNotificationRepository(database.DB)
+	notificationService := services.NewNotificationService(notificationRepo)
 
 	// Email Service
 	var emailService email.EmailService
@@ -76,8 +84,8 @@ func main() {
 	}
 
 	// Services
-	todoService := services.NewTodoService(todoRepo)
-	authService := services.NewAuthService(employeeRepo, jwtService, passwordService)
+
+	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService)
 	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
 	storageService := storage.NewSupabaseStorage(
 		cfg.Supabase.URL,
@@ -87,7 +95,7 @@ func main() {
 	documentService := services.NewDocumentService(documentRepo, storageService)
 	categoryService := services.NewDocumentCategoryService(documentCategoryRepo)
 	// Cron Service
-	cronService := services.NewCronService(employeeRepo, emailService)
+	cronService := services.NewCronService(employeeRepo, emailService, notificationService)
 	cronService.Start()
 	defer cronService.Stop()
 
@@ -109,6 +117,7 @@ func main() {
 		documentService,
 		categoryService,
 	)
+	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

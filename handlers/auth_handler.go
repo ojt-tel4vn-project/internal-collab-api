@@ -41,6 +41,22 @@ func (h *AuthHandler) RegisterRoutes(api huma.API) {
 		Tags:        []string{"Auth"},
 	}, h.FirstTimeSetup)
 
+	huma.Register(api, huma.Operation{
+		OperationID: "auth-refresh-token",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/refresh-token",
+		Summary:     "Refresh Access Token",
+		Tags:        []string{"Auth"},
+	}, h.RefreshToken)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "auth-forgot-password",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/forgot-password",
+		Summary:     "Forgot Password",
+		Tags:        []string{"Auth"},
+	}, h.ForgotPassword)
+
 	// Protected routes
 	huma.Register(api, huma.Operation{
 		OperationID: "auth-change-password",
@@ -77,6 +93,30 @@ func (h *AuthHandler) FirstTimeSetup(ctx context.Context, input *struct {
 		return nil, huma.Error400BadRequest("First-time setup failed", err)
 	}
 	return &struct{ Body auth.FirstTimeSetupResponse }{Body: *resp}, nil
+}
+
+func (h *AuthHandler) RefreshToken(ctx context.Context, input *struct {
+	Body auth.RefreshTokenRequest
+}) (*struct {
+	Body auth.RefreshTokenResponse
+}, error) {
+	resp, err := h.service.RefreshToken(&input.Body)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Refresh token failed", err)
+	}
+	return &struct{ Body auth.RefreshTokenResponse }{Body: *resp}, nil
+}
+
+func (h *AuthHandler) ForgotPassword(ctx context.Context, input *struct {
+	Body auth.ForgotPasswordRequest
+}) (*struct {
+	Body auth.ForgotPasswordResponse
+}, error) {
+	resp, err := h.service.ForgotPassword(&input.Body)
+	if err != nil {
+		return nil, huma.Error400BadRequest("Forgot password request failed", err)
+	}
+	return &struct{ Body auth.ForgotPasswordResponse }{Body: *resp}, nil
 }
 
 func (h *AuthHandler) ChangePassword(ctx context.Context, input *struct {

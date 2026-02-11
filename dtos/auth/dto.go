@@ -10,6 +10,7 @@ type LoginRequest struct {
 
 type LoginResponse struct {
 	AccessToken           string `json:"access_token"`
+	RefreshToken          string `json:"refresh_token"`
 	TokenType             string `json:"token_type"`
 	RequirePasswordChange bool   `json:"require_password_change"` // True if first-time login
 	User                  struct {
@@ -41,4 +42,22 @@ type FirstTimeSetupResponse struct {
 	Message     string `json:"message"`
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
+}
+
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+type RefreshTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type ForgotPasswordResponse struct {
+	Message string `json:"message"`
 }
