@@ -3,20 +3,39 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: todolist_postgres
+    container_name: internal_collab_postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: todolist_db
+      POSTGRES_DB: internal_collab_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  api:
+    build: .
+    container_name: internal_collab_api
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=internal_collab_db
+      - DB_PORT=5432
+      - SERVER_PORT=8080
+      # Add other keys from .env here or pass them through
+      - BREVO_API_KEY=$
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
 
 volumes:
   postgres_data:

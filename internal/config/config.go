@@ -9,6 +9,14 @@ type Config struct {
 	Database DatabaseConfig
 	Server   ServerConfig
 	JWT      JWTConfig
+	Email    EmailConfig
+	Supabase SupabaseConfig
+}
+
+type SupabaseConfig struct {
+	URL    string
+	Bucket string
+	APIKey string
 }
 
 type DatabaseConfig struct {
@@ -29,6 +37,12 @@ type JWTConfig struct {
 	ExpirationHours int
 }
 
+type EmailConfig struct {
+	BrevoAPIKey string
+	FromEmail   string
+	FromName    string
+}
+
 func Load() *Config {
 	return &Config{
 		Database: DatabaseConfig{
@@ -45,6 +59,16 @@ func Load() *Config {
 		JWT: JWTConfig{
 			Secret:          getEnv("JWT_SECRET", "your-secret-key-change-this-in-production"),
 			ExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
+		},
+		Email: EmailConfig{
+			BrevoAPIKey: getEnv("BREVO_API_KEY", ""),
+			FromEmail:   getEnv("EMAIL_FROM", "noreply@company.com"),
+			FromName:    getEnv("EMAIL_FROM_NAME", "Internal Collaboration System"),
+		},
+		Supabase: SupabaseConfig{
+			URL:    getEnv("SUPABASE_URL", ""),
+			Bucket: getEnv("SUPABASE_BUCKET", ""),
+			APIKey: getEnv("SUPABASE_API_KEY", ""),
 		},
 	}
 }

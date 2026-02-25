@@ -1,0 +1,50 @@
+package repository
+
+import (
+	"github.com/google/uuid"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
+	"gorm.io/gorm"
+)
+
+type EmployeeRepository interface {
+	BaseRepository[models.Employee]
+	FindByEmail(email string) (*models.Employee, error)
+	FindEmployeesByBirthday(month, day int) ([]models.Employee, error)
+	FindSubordinates(managerID uuid.UUID) ([]models.Employee, error)
+}
+
+type employeeRepository struct {
+	BaseRepository[models.Employee]
+	db *gorm.DB
+}
+
+func NewEmployeeRepository(db *gorm.DB) EmployeeRepository {
+	return &employeeRepository{
+		BaseRepository: NewBaseRepository[models.Employee](db),
+		db:             db,
+	}
+}
+
+func (r *employeeRepository) FindByID(id uuid.UUID) (*models.Employee, error) {
+	var employee models.Employee
+	err := r.db.Preload("Roles").Preload("Department").First(&employee, id).Error
+	return &employee, err
+}
+
+func (r *employeeRepository) FindByEmail(email string) (*models.Employee, error) {
+	var employee models.Employee
+	err := r.db.Preload("Roles").Preload("Department").Where("email = ?", email).First(&employee).Error
+	return &employee, err
+}
+
+func (r *employeeRepository) FindEmployeesByBirthday(month, day int) ([]models.Employee, error) {
+	var employees []models.Employee
+	err := r.db.Where("EXTRACT(MONTH FROM date_of_birth) = ? AND EXTRACT(DAY FROM date_of_birth) = ?", month, day).Find(&employees).Error
+	return employees, err
+}
+
+func (r *employeeRepository) FindSubordinates(managerID uuid.UUID) ([]models.Employee, error) {
+	var employees []models.Employee
+	err := r.db.Preload("Department").Where("manager_id = ?", managerID).Find(&employees).Error
+	return employees, err
+}
