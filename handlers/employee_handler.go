@@ -130,6 +130,28 @@ func (h *EmployeeHandler) validateHROrManagerAccess(authHeader string) error {
 	return nil
 }
 
+// validateHRAccess validates JWT and checks for HR role
+func (h *EmployeeHandler) validateHRAccess(authHeader string) error {
+	// Validate JWT
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return huma.Error401Unauthorized("Invalid authorization format")
+	}
+
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	claims, err := h.jwtService.ValidateToken(token)
+	if err != nil {
+		return huma.Error401Unauthorized("Invalid or expired token")
+	}
+
+	// Check HR or Manager role
+	err = authPkg.CheckRole(claims.UserID, h.employeeRepo, "hr", "manager", "admin")
+	if err != nil {
+		return huma.Error403Forbidden("Insufficient permissions. HR, Manager or Admin role required.")
+	}
+
+	return nil
+}
+
 func (h *EmployeeHandler) CreateEmployee(ctx context.Context, input *struct {
 	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 	Body          employee.CreateEmployeeRequest

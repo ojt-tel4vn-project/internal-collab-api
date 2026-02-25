@@ -28,9 +28,6 @@ func SetupRoutes(
 
 	employeeHandler.RegisterRoutes(api)
 
-	// Document Routes (with JWT service and employee repo for role checking)
-	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo, categoryService)
-	documentHandler.RegisterRoutes(api)
 	// Audit Log Routes (Admin only)
 	auditLogHandler := handlers.NewAuditLogHandler(auditLogService, jwtService, employeeRepo)
 	auditLogHandler.RegisterRoutes(api)
@@ -38,4 +35,8 @@ func SetupRoutes(
 	// Notification Routes
 	notificationHandler := handlers.NewNotificationHandler(notificationService, jwtService)
 	notificationHandler.RegisterRoutes(api)
+
+	// Document Routes (HR & All employees)
+	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo, categoryService)
+	documentHandler.RegisterRoutes(api)
 }

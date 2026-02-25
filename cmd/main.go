@@ -46,6 +46,13 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
+	// Initialize Storage
+	storageService := storage.NewSupabaseStorage(
+		cfg.Supabase.URL,
+		cfg.Supabase.Bucket,
+		cfg.Supabase.APIKey,
+	)
+
 	// Run migrations
 	if err := database.Migrate(); err != nil {
 		log.Fatal("Failed to migrate database:", err)
@@ -53,10 +60,10 @@ func main() {
 
 	// Initialize dependencies
 	// Repositories
-
 	employeeRepo := repository.NewEmployeeRepository(database.DB)
+	refreshTokenRepo := repository.NewRefreshTokenRepository(database.DB)
+	categoryRepo := repository.NewDocumentCategoryRepository(database.DB)
 	documentRepo := repository.NewDocumentRepository(database.DB)
-	documentCategoryRepo := repository.NewDocumentCategoryRepository(database.DB)
 
 	// Utils
 	jwtService := crypto.NewJWTService()
@@ -87,13 +94,9 @@ func main() {
 
 	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService)
 	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
-	storageService := storage.NewSupabaseStorage(
-		cfg.Supabase.URL,
-		cfg.Supabase.Bucket,
-		cfg.Supabase.APIKey,
-	)
+	categoryService := services.NewDocumentCategoryService(categoryRepo)
 	documentService := services.NewDocumentService(documentRepo, storageService)
-	categoryService := services.NewDocumentCategoryService(documentCategoryRepo)
+
 	// Cron Service
 	cronService := services.NewCronService(employeeRepo, emailService, notificationService)
 	cronService.Start()
@@ -107,17 +110,7 @@ func main() {
 	api := humachi.New(router, humaConfig)
 
 	// Register routes
-	routes.SetupRoutes(
-		api,
-		todoService,
-		authService,
-		employeeService,
-		jwtService,
-		employeeRepo,
-		documentService,
-		categoryService,
-	)
-	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo)
+	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)
