@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/config"
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/database"
+	"github.com/ojt-tel4vn-project/internal-collab-api/internal/storage"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/email"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/logger"
@@ -45,6 +46,13 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
+	// Initialize Storage
+	storageService := storage.NewSupabaseStorage(
+		cfg.Supabase.URL,
+		cfg.Supabase.Bucket,
+		cfg.Supabase.APIKey,
+	)
+
 	// Run migrations
 	if err := database.Migrate(); err != nil {
 		log.Fatal("Failed to migrate database:", err)
@@ -52,9 +60,10 @@ func main() {
 
 	// Initialize dependencies
 	// Repositories
-
 	employeeRepo := repository.NewEmployeeRepository(database.DB)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(database.DB)
+	categoryRepo := repository.NewDocumentCategoryRepository(database.DB)
+	documentRepo := repository.NewDocumentRepository(database.DB)
 
 	// Utils
 	jwtService := crypto.NewJWTService()
@@ -84,9 +93,9 @@ func main() {
 	// Services
 
 	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService)
-
-	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService)
 	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
+	categoryService := services.NewDocumentCategoryService(categoryRepo)
+	documentService := services.NewDocumentService(documentRepo, storageService)
 
 	// Cron Service
 	cronService := services.NewCronService(employeeRepo, emailService, notificationService)
@@ -101,7 +110,7 @@ func main() {
 	api := humachi.New(router, humaConfig)
 
 	// Register routes
-	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo)
+	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

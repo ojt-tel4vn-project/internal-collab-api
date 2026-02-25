@@ -14,8 +14,6 @@ func SetupRoutes(
 	employeeService services.EmployeeService,
 	auditLogService services.AuditLogService,
 	notificationService services.NotificationService,
-	auditLogService services.AuditLogService,
-	notificationService services.NotificationService,
 	jwtService crypto.JWTService,
 	employeeRepo repository.EmployeeRepository,
 	documentService services.DocumentService,
@@ -37,4 +35,8 @@ func SetupRoutes(
 	// Notification Routes
 	notificationHandler := handlers.NewNotificationHandler(notificationService, jwtService)
 	notificationHandler.RegisterRoutes(api)
+
+	// Document Routes (HR & All employees)
+	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo, categoryService)
+	documentHandler.RegisterRoutes(api)
 }
