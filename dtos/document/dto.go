@@ -10,4 +10,5 @@ type CreateDocumentRequest struct {
 	Title      string                `json:"title" form:"title" required:"true"`
 	CategoryID uuid.UUID             `json:"category_id" form:"category_id" required:"true"`
 	File       *multipart.FileHeader `json:"file" form:"file" required:"true"`
+	Roles      string                `json:"roles" required:"true"`
 }

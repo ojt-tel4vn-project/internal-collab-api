@@ -49,7 +49,7 @@ func NewDocumentHandler(service services.DocumentService, jwtService crypto.JWTS
 }
 
 func (h *DocumentHandler) RegisterRoutes(api huma.API) {
-	// Document endpoints (require authentication)
+	//Create document (HR only)
 	huma.Register(api, huma.Operation{
 		OperationID: "create-document",
 		Method:      http.MethodPost,
@@ -61,6 +61,7 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.CreateDocument)
 
+	// List documents
 	huma.Register(api, huma.Operation{
 		OperationID: "list-documents",
 		Method:      http.MethodGet,
@@ -72,6 +73,7 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.ListDocuments)
 
+	// Mark document as read
 	huma.Register(api, huma.Operation{
 		OperationID: "read-document",
 		Method:      http.MethodPost,
@@ -83,6 +85,7 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.ReadDocument)
 
+	// View document (inline)
 	huma.Register(api, huma.Operation{
 		OperationID: "view-document",
 		Method:      http.MethodGet,
@@ -105,6 +108,7 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.ViewDocument)
 
+	// Download document (attachment)
 	huma.Register(api, huma.Operation{
 		OperationID: "download-document",
 		Method:      http.MethodGet,
@@ -127,6 +131,7 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.DownloadDocument)
 
+	// Create document category (HR only)
 	huma.Register(api, huma.Operation{
 		OperationID: "create-document-category",
 		Method:      http.MethodPost,
@@ -139,6 +144,7 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 	}, h.CreateDocumentCategory)
 }
 
+// CreateDocument function
 func (h *DocumentHandler) CreateDocument(
 	ctx context.Context,
 	input *struct {
@@ -235,10 +241,29 @@ func (h *DocumentHandler) CreateDocument(
 		return nil, huma.Error500InternalServerError("Failed to upload file", err)
 	}
 
+	roles := "employee" // Default role
+	if r, ok := input.RawBody.Value["roles"]; ok && len(r) > 0 {
+		roles = r[0]
+	}
+	allowed := map[string]bool{
+		"employee": true,
+		"manager":  true,
+		"hr":       true,
+	}
+
+	splitRoles := strings.Split(roles, ",")
+	for _, r := range splitRoles {
+		if !allowed[strings.TrimSpace(r)] {
+			return nil, huma.Error400BadRequest("invalid role")
+		}
+	}
+
 	doc := models.Document{
 		Title:      title,
 		CategoryID: categoryID,
 		FilePath:   fileURL,
+		Roles:      roles,
+		UploadedBy: claims.UserID,
 	}
 
 	result, err := h.service.Create(claims.UserID, doc)
@@ -250,6 +275,7 @@ func (h *DocumentHandler) CreateDocument(
 
 }
 
+// ListDocuments function
 func (h *DocumentHandler) ListDocuments(
 	ctx context.Context,
 	input *struct {
@@ -257,22 +283,34 @@ func (h *DocumentHandler) ListDocuments(
 	},
 ) (*struct{ Body []models.Document }, error) {
 	// Validate login
-	_, err := authPkg.Authorize(
+	claims, err := authPkg.Authorize(
 		input.Authorization,
 		h.jwtService,
 		h.employeeRepo,
-		authPkg.AuthOptions{},
+		authPkg.AuthOptions{
+			RequireActive: true,
+		},
 	)
 	if err != nil {
 		return nil, err
 	}
-	docs, err := h.service.List()
+	employee, err := h.employeeRepo.FindByID(claims.UserID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Employee not found or has no role assigned")
+	}
+	if len(employee.Roles) != 1 {
+		return nil, huma.Error403Forbidden("invalid role configuration")
+	}
+
+	userRole := employee.Roles[0].Name
+	docs, err := h.service.List(userRole)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to list documents", err)
 	}
 	return &struct{ Body []models.Document }{Body: docs}, nil
 }
 
+// ReadDocument function
 func (h *DocumentHandler) ReadDocument(
 	ctx context.Context,
 	input *struct {
@@ -313,6 +351,7 @@ func (h *DocumentHandler) ReadDocument(
 	}, nil
 }
 
+// CreateDocumentCategory function
 func (h *DocumentHandler) CreateDocumentCategory(
 	ctx context.Context,
 	input *struct {
@@ -346,10 +385,29 @@ func (h *DocumentHandler) CreateDocumentCategory(
 	return &struct{ Body models.DocumentCategory }{Body: *result}, nil
 }
 
-func (h *DocumentHandler) serveDocumentFile(docID uuid.UUID, inline bool) (*huma.StreamResponse, error) {
+func hasPermission(docRoles, userRole string) bool {
+	if userRole == "admin" {
+		return true
+	}
+	roles := strings.Split(docRoles, ",")
+	for _, role := range roles {
+		if strings.TrimSpace(role) == userRole {
+			return true
+		}
+	}
+	return false
+}
+
+// serveDocumentFile is a helper function to serve document files for both view and download endpoints
+func (h *DocumentHandler) serveDocumentFile(docID uuid.UUID, role string, inline bool) (*huma.StreamResponse, error) {
 	doc, err := h.service.FindByID(docID)
 	if err != nil {
 		return nil, huma.Error404NotFound("Document not found")
+	}
+
+	// Check if user has permission to access the document
+	if !hasPermission(doc.Roles, role) {
+		return nil, huma.Error403Forbidden("You do not have permission to access this document")
 	}
 
 	disposition := "attachment"
@@ -391,6 +449,7 @@ func (h *DocumentHandler) serveDocumentFile(docID uuid.UUID, inline bool) (*huma
 	}, nil
 }
 
+// ViewDocument function
 func (h *DocumentHandler) ViewDocument(
 	ctx context.Context,
 	input *struct {
@@ -409,9 +468,25 @@ func (h *DocumentHandler) ViewDocument(
 	if err != nil {
 		return nil, err
 	}
+
+	employee, err := h.employeeRepo.FindByID(claims.UserID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Employee not found or has no role assigned")
+	}
+
+	if len(employee.Roles) != 1 {
+		return nil, huma.Error403Forbidden("invalid role configuration")
+	}
+
+	userRole := employee.Roles[0].Name
+
+	resp, err := h.serveDocumentFile(input.ID, userRole, true)
+	if err != nil {
+		return nil, err
+	}
 	// Auto mark as read
 	_ = h.service.Read(input.ID, claims.UserID)
-	return h.serveDocumentFile(input.ID, true)
+	return resp, nil
 }
 
 func (h *DocumentHandler) DownloadDocument(
@@ -421,7 +496,7 @@ func (h *DocumentHandler) DownloadDocument(
 		ID            uuid.UUID `path:"id" required:"true"`
 	},
 ) (*huma.StreamResponse, error) {
-	_, err := authPkg.Authorize(
+	claims, err := authPkg.Authorize(
 		input.Authorization,
 		h.jwtService,
 		h.employeeRepo,
@@ -433,5 +508,16 @@ func (h *DocumentHandler) DownloadDocument(
 		return nil, err
 	}
 
-	return h.serveDocumentFile(input.ID, false)
+	employee, err := h.employeeRepo.FindByID(claims.UserID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Employee not found or has no role assigned")
+	}
+
+	if len(employee.Roles) != 1 {
+		return nil, huma.Error403Forbidden("invalid role configuration")
+	}
+
+	userRole := employee.Roles[0].Name
+
+	return h.serveDocumentFile(input.ID, userRole, false)
 }

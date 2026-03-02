@@ -13,7 +13,7 @@ import (
 
 type DocumentService interface {
 	Create(employeeID uuid.UUID, doc models.Document) (*models.Document, error)
-	List() ([]models.Document, error)
+	List(role string) ([]models.Document, error)
 	Read(docID, employeeID uuid.UUID) error
 	UploadFile(ctx context.Context, path string, file io.Reader) (string, error)
 	FindByID(docID uuid.UUID) (*models.Document, error)
@@ -39,8 +39,8 @@ func (s *documentServiceImpl) Create(employeeID uuid.UUID, doc models.Document) 
 	return &doc, nil
 }
 
-func (s *documentServiceImpl) List() ([]models.Document, error) {
-	return s.repo.FindAll()
+func (s *documentServiceImpl) List(role string) ([]models.Document, error) {
+	return s.repo.FindByRole(role)
 }
 
 func (s *documentServiceImpl) Read(docID, employeeID uuid.UUID) error {
