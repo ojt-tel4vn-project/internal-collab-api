@@ -21,10 +21,14 @@ type EmployeeService interface {
 	CreateEmployee(req *employee.CreateEmployeeRequest) (*employee.CreateEmployeeResponse, error)
 	GetAllEmployees() (*employee.ListEmployeesResponse, error)
 	GetEmployeeByID(id uuid.UUID) (*employee.GetEmployeeResponse, error)
+	GetProfile(id uuid.UUID) (*employee.GetEmployeeResponse, error)
 	UpdateEmployee(id uuid.UUID, req *employee.UpdateEmployeeRequest) (*employee.UpdateEmployeeResponse, error)
+	UpdateProfile(id uuid.UUID, req *employee.UpdateProfileRequest) (*employee.UpdateProfileResponse, error)
 	DeleteEmployee(id uuid.UUID) error
 	GetTodayBirthdays() (*employee.ListBirthdayResponse, error)
 	GetSubordinates(managerID uuid.UUID) (*employee.ListSubordinatesResponse, error)
+	GetBirthdayConfig() (*employee.GetBirthdayConfigResponse, error)
+	UpdateBirthdayConfig(req *employee.UpdateBirthdayConfigRequest) (*employee.UpdateBirthdayConfigResponse, error)
 }
 
 type employeeServiceImpl struct {
@@ -249,6 +253,11 @@ func (s *employeeServiceImpl) GetEmployeeByID(id uuid.UUID) (*employee.GetEmploy
 	return resp, nil
 }
 
+func (s *employeeServiceImpl) GetProfile(id uuid.UUID) (*employee.GetEmployeeResponse, error) {
+	// Re-using GetEmployeeByID
+	return s.GetEmployeeByID(id)
+}
+
 func (s *employeeServiceImpl) UpdateEmployee(id uuid.UUID, req *employee.UpdateEmployeeRequest) (*employee.UpdateEmployeeResponse, error) {
 	emp, err := s.repo.FindByID(id)
 	if err != nil {
@@ -316,6 +325,35 @@ func (s *employeeServiceImpl) UpdateEmployee(id uuid.UUID, req *employee.UpdateE
 			DepartmentID: emp.DepartmentID,
 			Status:       string(emp.Status),
 		},
+	}, nil
+}
+
+func (s *employeeServiceImpl) UpdateProfile(id uuid.UUID, req *employee.UpdateProfileRequest) (*employee.UpdateProfileResponse, error) {
+	emp, err := s.repo.FindByID(id)
+	if err != nil {
+		logger.Warn("UpdateProfile failed: employee not found", zap.String("id", id.String()))
+		return nil, response.NotFound("Employee not found")
+	}
+
+	if req.Phone != nil {
+		emp.Phone = *req.Phone
+	}
+	if req.Address != nil {
+		emp.Address = *req.Address
+	}
+	if req.AvatarUrl != nil {
+		emp.AvatarUrl = *req.AvatarUrl
+	}
+
+	if err := s.repo.Update(emp); err != nil {
+		logger.Error("UpdateProfile failed: database update error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to update profile")
+	}
+
+	logger.Info("Profile updated successfully", zap.String("employee_id", id.String()))
+
+	return &employee.UpdateProfileResponse{
+		Message: "Profile updated successfully",
 	}, nil
 }
 
@@ -415,5 +453,31 @@ func (s *employeeServiceImpl) GetSubordinates(managerID uuid.UUID) (*employee.Li
 		},
 		Subordinates: summaryList,
 		Total:        len(summaryList),
+	}, nil
+}
+
+// Global in-memory config for now
+var currentBirthdayConfig = employee.BirthdayConfig{
+	Enabled:          true,
+	NotificationTime: "09:00",
+	Channels:         []string{"in_app", "email"},
+}
+
+func (s *employeeServiceImpl) GetBirthdayConfig() (*employee.GetBirthdayConfigResponse, error) {
+	return &employee.GetBirthdayConfigResponse{
+		Data: currentBirthdayConfig,
+	}, nil
+}
+
+func (s *employeeServiceImpl) UpdateBirthdayConfig(req *employee.UpdateBirthdayConfigRequest) (*employee.UpdateBirthdayConfigResponse, error) {
+	currentBirthdayConfig = employee.BirthdayConfig{
+		Enabled:          req.Enabled,
+		NotificationTime: req.NotificationTime,
+		Channels:         req.Channels,
+	}
+
+	return &employee.UpdateBirthdayConfigResponse{
+		Message: "Birthday configuration updated successfully",
+		Data:    currentBirthdayConfig,
 	}, nil
 }

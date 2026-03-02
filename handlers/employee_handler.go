@@ -97,6 +97,28 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 	}, h.GetTodayBirthdays)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "get-birthday-config",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/employees/birthdays/config",
+		Summary:     "Get Birthday Notification Config",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.GetBirthdayConfig)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-birthday-config",
+		Method:      http.MethodPut,
+		Path:        "/api/v1/employees/birthdays/config",
+		Summary:     "Update Birthday Notification Config (HR only)",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.UpdateBirthdayConfig)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "get-subordinates",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/employees/subordinates",
@@ -106,6 +128,29 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 			{"bearerAuth": {}},
 		},
 	}, h.GetSubordinates)
+
+	// Self-service profile endpoints
+	huma.Register(api, huma.Operation{
+		OperationID: "get-profile",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/employees/me",
+		Summary:     "Get current user profile",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.GetProfile)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-profile",
+		Method:      http.MethodPut,
+		Path:        "/api/v1/employees/me",
+		Summary:     "Update current user profile",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.UpdateProfile)
 }
 
 // validateHROrManagerAccess validates JWT and checks for HR or Manager role
@@ -364,5 +409,101 @@ func (h *EmployeeHandler) GetSubordinates(ctx context.Context, input *struct {
 
 	return &struct {
 		Body employee.ListSubordinatesResponse
+	}{Body: *resp}, nil
+}
+
+func (h *EmployeeHandler) GetProfile(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+}) (*struct {
+	Body employee.GetEmployeeResponse
+}, error) {
+	if !strings.HasPrefix(input.Authorization, "Bearer ") {
+		return nil, huma.Error401Unauthorized("Invalid authorization format")
+	}
+
+	token := strings.TrimPrefix(input.Authorization, "Bearer ")
+	claims, err := h.jwtService.ValidateToken(token)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Invalid or expired token")
+	}
+
+	resp, err := h.service.GetProfile(claims.UserID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to fetch profile", err)
+	}
+
+	return &struct {
+		Body employee.GetEmployeeResponse
+	}{Body: *resp}, nil
+}
+
+func (h *EmployeeHandler) UpdateProfile(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+	Body          employee.UpdateProfileRequest
+}) (*struct {
+	Body employee.UpdateProfileResponse
+}, error) {
+	if !strings.HasPrefix(input.Authorization, "Bearer ") {
+		return nil, huma.Error401Unauthorized("Invalid authorization format")
+	}
+
+	token := strings.TrimPrefix(input.Authorization, "Bearer ")
+	claims, err := h.jwtService.ValidateToken(token)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Invalid or expired token")
+	}
+
+	resp, err := h.service.UpdateProfile(claims.UserID, &input.Body)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to update profile", err)
+	}
+
+	return &struct {
+		Body employee.UpdateProfileResponse
+	}{Body: *resp}, nil
+}
+
+func (h *EmployeeHandler) GetBirthdayConfig(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+}) (*struct {
+	Body employee.GetBirthdayConfigResponse
+}, error) {
+	if !strings.HasPrefix(input.Authorization, "Bearer ") {
+		return nil, huma.Error401Unauthorized("Invalid authorization format")
+	}
+
+	_, err := h.jwtService.ValidateToken(strings.TrimPrefix(input.Authorization, "Bearer "))
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Invalid or expired token")
+	}
+
+	resp, err := h.service.GetBirthdayConfig()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to fetch birthday config", err)
+	}
+
+	return &struct {
+		Body employee.GetBirthdayConfigResponse
+	}{Body: *resp}, nil
+}
+
+func (h *EmployeeHandler) UpdateBirthdayConfig(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+	Body          employee.UpdateBirthdayConfigRequest
+}) (*struct {
+	Body employee.UpdateBirthdayConfigResponse
+}, error) {
+	// Validate HR role since only HR should config this
+	if err := h.validateHRAccess(input.Authorization); err != nil {
+		return nil, err
+	}
+
+	resp, err := h.service.UpdateBirthdayConfig(&input.Body)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to update birthday config", err)
+	}
+
+	return &struct {
+		Body employee.UpdateBirthdayConfigResponse
 	}{Body: *resp}, nil
 }

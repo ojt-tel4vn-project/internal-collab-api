@@ -9,6 +9,7 @@ import (
 type EmployeeRepository interface {
 	BaseRepository[models.Employee]
 	FindByEmail(email string) (*models.Employee, error)
+	FindByPasswordResetToken(token string) (*models.Employee, error)
 	FindEmployeesByBirthday(month, day int) ([]models.Employee, error)
 	FindSubordinates(managerID uuid.UUID) ([]models.Employee, error)
 }
@@ -34,6 +35,12 @@ func (r *employeeRepository) FindByID(id uuid.UUID) (*models.Employee, error) {
 func (r *employeeRepository) FindByEmail(email string) (*models.Employee, error) {
 	var employee models.Employee
 	err := r.db.Preload("Roles").Preload("Department").Where("email = ?", email).First(&employee).Error
+	return &employee, err
+}
+
+func (r *employeeRepository) FindByPasswordResetToken(token string) (*models.Employee, error) {
+	var employee models.Employee
+	err := r.db.Preload("Roles").Preload("Department").Where("password_reset_token = ?", token).First(&employee).Error
 	return &employee, err
 }
 

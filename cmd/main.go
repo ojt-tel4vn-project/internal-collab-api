@@ -5,9 +5,12 @@ import (
 	"log"
 	"net/http"
 
+	"time"
+
+	ratelimit "github.com/JGLTechnologies/gin-rate-limit"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humachi"
-	"github.com/go-chi/chi/v5"
+	"github.com/danielgtaylor/huma/v2/adapters/humagin"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/config"
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/database"
@@ -91,7 +94,6 @@ func main() {
 	}
 
 	// Services
-
 	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService)
 	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
 	categoryService := services.NewDocumentCategoryService(categoryRepo)
@@ -102,12 +104,30 @@ func main() {
 	cronService.Start()
 	defer cronService.Stop()
 
-	// Setup Chi router
-	router := chi.NewMux()
+	// Setup Gin router
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.Default()
+
+	// Setup Rate Limiter (In-Memory)
+	store := ratelimit.InMemoryStore(&ratelimit.InMemoryOptions{
+		Rate:  time.Minute,
+		Limit: 100,
+	})
+	mw := ratelimit.RateLimiter(store, &ratelimit.Options{
+		ErrorHandler: func(c *gin.Context, info ratelimit.Info) {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "Too many requests. Please try again later.",
+			})
+		},
+		KeyFunc: func(c *gin.Context) string {
+			return c.ClientIP()
+		},
+	})
+	router.Use(mw)
 
 	// Setup Huma API
 	humaConfig := huma.DefaultConfig("Internal Collab API", "1.0.0")
-	api := humachi.New(router, humaConfig)
+	api := humagin.New(router, humaConfig)
 
 	// Register routes
 	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService)

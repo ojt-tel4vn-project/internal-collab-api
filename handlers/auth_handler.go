@@ -57,6 +57,14 @@ func (h *AuthHandler) RegisterRoutes(api huma.API) {
 		Tags:        []string{"Auth"},
 	}, h.ForgotPassword)
 
+	huma.Register(api, huma.Operation{
+		OperationID: "auth-reset-password",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/reset-password",
+		Summary:     "Reset Password",
+		Tags:        []string{"Auth"},
+	}, h.ResetPassword)
+
 	// Protected routes
 	huma.Register(api, huma.Operation{
 		OperationID: "auth-change-password",
@@ -142,4 +150,16 @@ func (h *AuthHandler) ChangePassword(ctx context.Context, input *struct {
 		return nil, huma.Error400BadRequest("Password change failed", err)
 	}
 	return &struct{ Body auth.ChangePasswordResponse }{Body: *resp}, nil
+}
+
+func (h *AuthHandler) ResetPassword(ctx context.Context, input *struct {
+	Body auth.ResetPasswordRequest
+}) (*struct {
+	Body auth.ResetPasswordResponse
+}, error) {
+	resp, err := h.service.ResetPassword(&input.Body)
+	if err != nil {
+		return nil, huma.Error400BadRequest("Password reset failed", err)
+	}
+	return &struct{ Body auth.ResetPasswordResponse }{Body: *resp}, nil
 }

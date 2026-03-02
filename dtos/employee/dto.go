@@ -61,6 +61,17 @@ type UpdateEmployeeResponse struct {
 	} `json:"employee"`
 }
 
+// Update Profile DTOs (Self-Service)
+type UpdateProfileRequest struct {
+	Phone     *string `json:"phone"`
+	Address   *string `json:"address"`
+	AvatarUrl *string `json:"avatar_url"`
+}
+
+type UpdateProfileResponse struct {
+	Message string `json:"message"`
+}
+
 // List Employees DTOs
 type ListEmployeesResponse struct {
 	Employees []EmployeeSummary `json:"employees"`
@@ -121,4 +132,26 @@ type BirthdaySummary struct {
 	Department string    `json:"department"`
 	Position   string    `json:"position"`
 	BirthDate  string    `json:"birth_date"`
+}
+
+// Birthday Config DTOs
+type BirthdayConfig struct {
+	Enabled          bool     `json:"enabled"`
+	NotificationTime string   `json:"notification_time"`
+	Channels         []string `json:"channels"`
+}
+
+type GetBirthdayConfigResponse struct {
+	Data BirthdayConfig `json:"data"`
+}
+
+type UpdateBirthdayConfigRequest struct {
+	Enabled          bool     `json:"enabled"`
+	NotificationTime string   `json:"notification_time"`
+	Channels         []string `json:"channels"`
+}
+
+type UpdateBirthdayConfigResponse struct {
+	Message string         `json:"message"`
+	Data    BirthdayConfig `json:"data"`
 }
