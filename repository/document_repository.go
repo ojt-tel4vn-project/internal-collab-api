@@ -10,7 +10,7 @@ import (
 
 type DocumentRepository interface {
 	Create(doc *models.Document) error
-	FindAll() ([]models.Document, error)
+	FindByRole(role string) ([]models.Document, error)
 	MarkAsRead(documentID, employeeID uuid.UUID) error
 	GetReaders(docID uuid.UUID) ([]uuid.UUID, error)
 	Exists(docID uuid.UUID) (bool, error)
@@ -29,9 +29,14 @@ func (r *documentRepositoryImpl) Create(doc *models.Document) error {
 	return r.db.Create(doc).Error
 }
 
-func (r *documentRepositoryImpl) FindAll() ([]models.Document, error) {
+func (r *documentRepositoryImpl) FindByRole(role string) ([]models.Document, error) {
 	var documents []models.Document
-	return documents, r.db.Order("created_at desc").Find(&documents).Error
+	query := r.db.Order("created_at desc")
+	if role != "admin" {
+		query = query.Where("roles LIKE ?", "%"+role+"%")
+	}
+	err := query.Find(&documents).Error
+	return documents, err
 }
 
 func (r *documentRepositoryImpl) MarkAsRead(documentID, employeeID uuid.UUID) error {
