@@ -1,41 +1,53 @@
 version: '3.8'
 
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: internal_collab_postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: internal_collab_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+# ─────────────────────────────────────────────────────────────
+# Internal Collab API — Docker Compose
+#
+# Database: Supabase (cloud) — no local Postgres needed
+# Secrets:  copy .env.example → .env and fill in the values
+#
+# Usage:
+#   docker compose up --build        # first time
+#   docker compose up -d             # background
+#   docker compose down              # stop
+# ─────────────────────────────────────────────────────────────
 
+services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: internal_collab_api
     ports:
-      - "8080:8080"
-    environment:
-      - DB_HOST=postgres
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=internal_collab_db
-      - DB_PORT=5432
-      - SERVER_PORT=8080
-      # Add other keys from .env here or pass them through
-      - BREVO_API_KEY=$
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: always
+      - "${SERVER_PORT:-8080}:8080"
 
-volumes:
-  postgres_data:
+    # Load all variables from .env file
+    env_file:
+      - .env
+
+    # Override / ensure these critical vars point correctly
+    environment:
+      - SERVER_PORT=${SERVER_PORT:-8080}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-6543}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME:-postgres}
+      - DB_SSLMODE=${DB_SSLMODE:-require}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION_HOURS=${JWT_EXPIRATION_HOURS:-24}
+      - BREVO_API_KEY=${BREVO_API_KEY}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_BUCKET=${SUPABASE_BUCKET:-documents}
+      - SUPABASE_API_KEY=${SUPABASE_API_KEY}
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3

@@ -14,7 +14,7 @@
 # Go workspace file
 go.work
 
-docker-compose.yml
+
 
 # Dependency directories
 vendor/

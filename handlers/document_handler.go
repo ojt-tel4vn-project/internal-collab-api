@@ -296,13 +296,14 @@ func (h *DocumentHandler) ListDocuments(
 	}
 	employee, err := h.employeeRepo.FindByID(claims.UserID)
 	if err != nil {
-		return nil, huma.Error404NotFound("Employee not found or has no role assigned")
-	}
-	if len(employee.Roles) != 1 {
-		return nil, huma.Error403Forbidden("invalid role configuration")
+		return nil, huma.Error404NotFound("Employee not found")
 	}
 
-	userRole := employee.Roles[0].Name
+	userRole := "employee" // default
+	if len(employee.Roles) > 0 {
+		userRole = employee.Roles[0].Name
+	}
+
 	docs, err := h.service.List(userRole)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to list documents", err)
@@ -471,14 +472,13 @@ func (h *DocumentHandler) ViewDocument(
 
 	employee, err := h.employeeRepo.FindByID(claims.UserID)
 	if err != nil {
-		return nil, huma.Error404NotFound("Employee not found or has no role assigned")
+		return nil, huma.Error404NotFound("Employee not found")
 	}
 
-	if len(employee.Roles) != 1 {
-		return nil, huma.Error403Forbidden("invalid role configuration")
+	userRole := "employee" // default
+	if len(employee.Roles) > 0 {
+		userRole = employee.Roles[0].Name
 	}
-
-	userRole := employee.Roles[0].Name
 
 	resp, err := h.serveDocumentFile(input.ID, userRole, true)
 	if err != nil {
@@ -510,14 +510,13 @@ func (h *DocumentHandler) DownloadDocument(
 
 	employee, err := h.employeeRepo.FindByID(claims.UserID)
 	if err != nil {
-		return nil, huma.Error404NotFound("Employee not found or has no role assigned")
+		return nil, huma.Error404NotFound("Employee not found")
 	}
 
-	if len(employee.Roles) != 1 {
-		return nil, huma.Error403Forbidden("invalid role configuration")
+	userRole := "employee" // default
+	if len(employee.Roles) > 0 {
+		userRole = employee.Roles[0].Name
 	}
-
-	userRole := employee.Roles[0].Name
 
 	return h.serveDocumentFile(input.ID, userRole, false)
 }

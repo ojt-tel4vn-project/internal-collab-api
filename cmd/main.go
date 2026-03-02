@@ -99,6 +99,9 @@ func main() {
 	categoryService := services.NewDocumentCategoryService(categoryRepo)
 	documentService := services.NewDocumentService(documentRepo, storageService)
 
+	leaveRepo := repository.NewLeaveRepository(database.DB)
+	leaveService := services.NewLeaveService(leaveRepo, employeeRepo, jwtService)
+
 	// Cron Service
 	cronService := services.NewCronService(employeeRepo, emailService, notificationService)
 	cronService.Start()
@@ -107,6 +110,14 @@ func main() {
 	// Setup Gin router
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
+
+	// Health check (no rate limit — used by Docker/k8s)
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"service": "internal-collab-api",
+		})
+	})
 
 	// Setup Rate Limiter (In-Memory)
 	store := ratelimit.InMemoryStore(&ratelimit.InMemoryOptions{
@@ -130,7 +141,7 @@ func main() {
 	api := humagin.New(router, humaConfig)
 
 	// Register routes
-	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService)
+	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

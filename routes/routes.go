@@ -18,6 +18,7 @@ func SetupRoutes(
 	employeeRepo repository.EmployeeRepository,
 	documentService services.DocumentService,
 	categoryService services.DocumentCategoryService,
+	leaveService services.LeaveService,
 ) {
 	// Auth Routes (with JWT service)
 	authHandler := handlers.NewAuthHandler(authService, jwtService)
@@ -39,4 +40,8 @@ func SetupRoutes(
 	// Document Routes (HR & All employees)
 	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo, categoryService)
 	documentHandler.RegisterRoutes(api)
+
+	// Leave Routes
+	leaveHandler := handlers.NewLeaveHandler(leaveService, jwtService, employeeRepo)
+	leaveHandler.RegisterRoutes(api)
 }
