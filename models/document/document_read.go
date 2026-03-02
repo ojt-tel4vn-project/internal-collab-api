@@ -7,7 +7,7 @@ import (
 )
 
 type DocumentRead struct {
-	DocumentID uuid.UUID `gorm:"primaryKey"`
-	EmployeeID uuid.UUID `gorm:"primaryKey"`
-	ReadAt     time.Time
+	DocumentID uuid.UUID `gorm:"type:uuid;primaryKey"`
+	EmployeeID uuid.UUID `gorm:"type:uuid;primaryKey"`
+	ReadAt     time.Time `gorm:"autoCreateTime"`
 }
