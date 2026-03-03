@@ -300,8 +300,8 @@ func (h *DocumentHandler) ListDocuments(
 	}
 
 	userRole := "employee" // default
-	if len(employee.Roles) > 0 {
-		userRole = employee.Roles[0].Name
+	if employee.Role != nil {
+		userRole = employee.Role.Name
 	}
 
 	docs, err := h.service.List(userRole)
@@ -476,8 +476,8 @@ func (h *DocumentHandler) ViewDocument(
 	}
 
 	userRole := "employee" // default
-	if len(employee.Roles) > 0 {
-		userRole = employee.Roles[0].Name
+	if employee.Role != nil {
+		userRole = employee.Role.Name
 	}
 
 	resp, err := h.serveDocumentFile(input.ID, userRole, true)
@@ -514,8 +514,8 @@ func (h *DocumentHandler) DownloadDocument(
 	}
 
 	userRole := "employee" // default
-	if len(employee.Roles) > 0 {
-		userRole = employee.Roles[0].Name
+	if employee.Role != nil {
+		userRole = employee.Role.Name
 	}
 
 	return h.serveDocumentFile(input.ID, userRole, false)

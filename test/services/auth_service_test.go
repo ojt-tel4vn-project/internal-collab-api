@@ -42,7 +42,8 @@ func sampleEmployee() *models.Employee {
 		EmployeeCode: "EMP001",
 		Position:     "Developer",
 		Status:       models.StatusActive,
-		Roles:        []models.Role{{Name: "employee"}},
+		RoleID:       func() *uuid.UUID { id := uuid.New(); return &id }(),
+		Role:         &models.Role{Name: models.RoleEmployee},
 	}
 }
 

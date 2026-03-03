@@ -18,7 +18,6 @@ DROP TABLE IF EXISTS leave_types          CASCADE;
 DROP TABLE IF EXISTS notifications        CASCADE;
 DROP TABLE IF EXISTS audit_logs           CASCADE;
 DROP TABLE IF EXISTS refresh_tokens       CASCADE;
-DROP TABLE IF EXISTS employee_roles       CASCADE;
 DROP TABLE IF EXISTS employees            CASCADE;
 DROP TABLE IF EXISTS roles                CASCADE;
 DROP TABLE IF EXISTS departments          CASCADE;
@@ -69,15 +68,10 @@ CREATE TABLE employees (
     last_login_at               TIMESTAMP,
     password_reset_token        VARCHAR(255),
     password_reset_expires_at   TIMESTAMP,
+    -- Single role FK (replaces many-to-many employee_roles)
+    role_id                     UUID         REFERENCES roles(id) ON DELETE SET NULL,
     created_at                  TIMESTAMP    DEFAULT NOW(),
     updated_at                  TIMESTAMP    DEFAULT NOW()
-);
-
--- employee_roles (many-to-many join)
-CREATE TABLE employee_roles (
-    employee_id UUID REFERENCES employees(id) ON DELETE CASCADE,
-    role_id     UUID REFERENCES roles(id)     ON DELETE CASCADE,
-    PRIMARY KEY (employee_id, role_id)
 );
 
 -- refresh_tokens
@@ -216,11 +210,12 @@ INSERT INTO departments (name, description) VALUES
     ('Customer Success',  'Client support and onboarding');
 
 -- ---------------------------------------------------------------------------
--- 4. SEED: Roles
+-- 4. SEED: Roles (4 canonical roles)
 -- ---------------------------------------------------------------------------
 INSERT INTO roles (name, description) VALUES
     ('admin',    'Full system access'),
     ('manager',  'Team management access'),
+    ('hr',       'Human Resources operations'),
     ('employee', 'Standard employee access');
 
 -- ---------------------------------------------------------------------------
@@ -234,6 +229,7 @@ DECLARE
 
     role_admin    UUID;
     role_manager  UUID;
+    role_hr       UUID;
     role_employee UUID;
 
     emp_admin   UUID;
@@ -259,61 +255,51 @@ BEGIN
     -- Lấy ID roles
     SELECT id INTO role_admin    FROM roles WHERE name = 'admin';
     SELECT id INTO role_manager  FROM roles WHERE name = 'manager';
+    SELECT id INTO role_hr       FROM roles WHERE name = 'hr';
     SELECT id INTO role_employee FROM roles WHERE name = 'employee';
 
     -- ---- Employees ----
 
     -- EMP001 – HR Admin
     INSERT INTO employees (employee_code, email, password_hash, first_name, last_name,
-        date_of_birth, phone, address, department_id, position, join_date, status)
+        date_of_birth, phone, address, department_id, position, join_date, status, role_id)
     VALUES ('EMP001', 'admin@company.com', pw_hash,
         'An', 'Nguyen', '1990-05-15', '0901234567', '123 Le Loi, Q1, HCMC',
-        dept_hr, 'HR Manager', '2020-01-15', 'active')
+        dept_hr, 'HR Manager', '2020-01-15', 'active', role_admin)
     RETURNING id INTO emp_admin;
 
     -- EMP002 – Engineering Manager
     INSERT INTO employees (employee_code, email, password_hash, first_name, last_name,
-        date_of_birth, phone, address, department_id, position, join_date, status)
+        date_of_birth, phone, address, department_id, position, join_date, status, role_id)
     VALUES ('EMP002', 'eng.manager@company.com', pw_hash,
         'Binh', 'Tran', '1988-11-22', '0912345678', '456 Nguyen Hue, Q1, HCMC',
-        dept_eng, 'Engineering Manager', '2019-03-01', 'active')
+        dept_eng, 'Engineering Manager', '2019-03-01', 'active', role_manager)
     RETURNING id INTO emp_engmgr;
 
     -- EMP003 – Software Engineer
     INSERT INTO employees (employee_code, email, password_hash, first_name, last_name,
-        date_of_birth, phone, address, department_id, position, manager_id, join_date, status)
+        date_of_birth, phone, address, department_id, position, manager_id, join_date, status, role_id)
     VALUES ('EMP003', 'dev1@company.com', pw_hash,
         'Cuong', 'Le', '1995-07-30', '0923456789', '789 Tran Hung Dao, Q5, HCMC',
-        dept_eng, 'Software Engineer', emp_engmgr, '2021-06-01', 'active')
+        dept_eng, 'Software Engineer', emp_engmgr, '2021-06-01', 'active', role_employee)
     RETURNING id INTO emp_dev1;
 
     -- EMP004 – Junior Software Engineer
     INSERT INTO employees (employee_code, email, password_hash, first_name, last_name,
-        date_of_birth, phone, address, department_id, position, manager_id, join_date, status)
+        date_of_birth, phone, address, department_id, position, manager_id, join_date, status, role_id)
     VALUES ('EMP004', 'dev2@company.com', pw_hash,
         'Dung', 'Pham', '1997-02-14', '0934567890', '22 Vo Van Tan, Q3, HCMC',
-        dept_eng, 'Junior Software Engineer', emp_engmgr, '2023-02-01', 'active')
+        dept_eng, 'Junior Software Engineer', emp_engmgr, '2023-02-01', 'active', role_employee)
     RETURNING id INTO emp_dev2;
 
     -- EMP005 – Product Manager
     INSERT INTO employees (employee_code, email, password_hash, first_name, last_name,
-        date_of_birth, phone, address, department_id, position, join_date, status)
+        date_of_birth, phone, address, department_id, position, join_date, status, role_id)
     VALUES ('EMP005', 'pm@company.com', pw_hash,
         'Em', 'Hoang', '1992-09-08', '0945678901', '10 Dien Bien Phu, Binh Thanh, HCMC',
-        dept_prod, 'Product Manager', '2020-09-15', 'active')
+        dept_prod, 'Product Manager', '2020-09-15', 'active', role_manager)
     RETURNING id INTO emp_pm;
-
-    -- ---- Employee Roles ----
-    INSERT INTO employee_roles (employee_id, role_id) VALUES
-        (emp_admin,  role_admin),
-        (emp_admin,  role_manager),
-        (emp_engmgr, role_manager),
-        (emp_engmgr, role_employee),
-        (emp_dev1,   role_employee),
-        (emp_dev2,   role_employee),
-        (emp_pm,     role_manager),
-        (emp_pm,     role_employee)
-    ON CONFLICT DO NOTHING;
+    -- (No employee_roles inserts needed — single role assigned above)
 
     -- ---- Leave Types ----
     INSERT INTO leave_types (name, description) VALUES

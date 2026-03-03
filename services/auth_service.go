@@ -87,8 +87,8 @@ func (s *authServiceImpl) Login(req *auth.LoginRequest) (*auth.LoginResponse, er
 	}
 
 	var roles []string
-	for _, role := range employee.Roles {
-		roles = append(roles, role.Name)
+	if employee.Role != nil {
+		roles = []string{employee.Role.Name}
 	}
 
 	return &auth.LoginResponse{

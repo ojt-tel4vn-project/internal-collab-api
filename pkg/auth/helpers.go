@@ -40,16 +40,18 @@ func CheckRole(employeeID uuid.UUID, employeeRepo repository.EmployeeRepository,
 		return errors.New("employee not found")
 	}
 
-	// Check if employee has any of the required roles
-	for _, role := range employee.Roles {
-		for _, required := range requiredRoles {
-			if role.Name == required {
-				logger.Debug("Role check passed",
-					zap.String("employee_id", employeeID.String()),
-					zap.String("role", role.Name),
-				)
-				return nil
-			}
+	var roleName string
+	if employee.Role != nil {
+		roleName = employee.Role.Name
+	}
+
+	for _, required := range requiredRoles {
+		if roleName == required {
+			logger.Debug("Role check passed",
+				zap.String("employee_id", employeeID.String()),
+				zap.String("role", roleName),
+			)
+			return nil
 		}
 	}
 

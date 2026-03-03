@@ -8,6 +8,7 @@ import (
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var DB *gorm.DB
@@ -25,11 +26,14 @@ func Connect(cfg *config.Config) error {
 
 	db, err := gorm.Open(postgres.New(postgres.Config{
 		DSN:                  dsn,
-		PreferSimpleProtocol: true, // Disables implicit prepared statement usage
+		PreferSimpleProtocol: true,
 	}), &gorm.Config{
 		// Prevent AutoMigrate from issuing ALTER TABLE ... DROP/ADD CONSTRAINT
-		// statements, which can fail on Supabase/pgBouncer with pgx driver.
+		// statements, which can fail on Supabase/pgBouncer.
 		DisableForeignKeyConstraintWhenMigrating: true,
+		// Raise slow-query threshold to 2s to suppress noise from Supabase
+		// network latency during migration schema queries (~200-400ms each).
+		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect database: %w", err)

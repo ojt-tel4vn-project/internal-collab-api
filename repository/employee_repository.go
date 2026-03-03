@@ -28,19 +28,19 @@ func NewEmployeeRepository(db *gorm.DB) EmployeeRepository {
 
 func (r *employeeRepository) FindByID(id uuid.UUID) (*models.Employee, error) {
 	var employee models.Employee
-	err := r.db.Preload("Roles").Preload("Department").First(&employee, id).Error
+	err := r.db.Preload("Role").Preload("Department").First(&employee, id).Error
 	return &employee, err
 }
 
 func (r *employeeRepository) FindByEmail(email string) (*models.Employee, error) {
 	var employee models.Employee
-	err := r.db.Preload("Roles").Preload("Department").Where("email = ?", email).First(&employee).Error
+	err := r.db.Preload("Role").Preload("Department").Where("email = ?", email).First(&employee).Error
 	return &employee, err
 }
 
 func (r *employeeRepository) FindByPasswordResetToken(token string) (*models.Employee, error) {
 	var employee models.Employee
-	err := r.db.Preload("Roles").Preload("Department").Where("password_reset_token = ?", token).First(&employee).Error
+	err := r.db.Preload("Role").Preload("Department").Where("password_reset_token = ?", token).First(&employee).Error
 	return &employee, err
 }
 

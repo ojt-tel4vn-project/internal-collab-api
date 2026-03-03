@@ -112,13 +112,7 @@ func (h *AuditLogHandler) checkAdmin(token string) error {
 		return huma.Error401Unauthorized("User not found")
 	}
 
-	isAdmin := false
-	for _, role := range employee.Roles {
-		if role.Name == "admin" {
-			isAdmin = true
-			break
-		}
-	}
+	isAdmin := employee.Role != nil && employee.Role.Name == "admin"
 	if !isAdmin {
 		return huma.Error403Forbidden("Access denied. Admin role required.")
 	}

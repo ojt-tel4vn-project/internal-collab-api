@@ -22,24 +22,22 @@ var (
 )
 
 // CheckUserRole checks if employee has any of the required roles
-// This is a helper function to be used in handlers
 func CheckUserRole(employeeID uuid.UUID, employeeRepo repository.EmployeeRepository, requiredRoles ...string) error {
-	// Fetch employee with roles
 	employee, err := employeeRepo.FindByID(employeeID)
 	if err != nil {
 		logger.Warn("Employee not found for role check", zap.String("employee_id", employeeID.String()))
 		return ErrEmployeeNotFound
 	}
 
-	// Get employee roles
-	userRoles := make(map[string]bool)
-	for _, role := range employee.Roles {
-		userRoles[role.Name] = true
+	// Get employee single role name
+	var roleName string
+	if employee.Role != nil {
+		roleName = employee.Role.Name
 	}
 
-	// Check if user has any of the required roles
+	// Check if employee's role matches any of the required roles
 	for _, requiredRole := range requiredRoles {
-		if userRoles[requiredRole] {
+		if roleName == requiredRole {
 			logger.Debug("Role check passed",
 				zap.String("employee_id", employeeID.String()),
 				zap.String("role", requiredRole),
@@ -77,28 +75,22 @@ func CheckProfileStatus(employeeID uuid.UUID, employeeRepo repository.EmployeeRe
 	return nil
 }
 
-// Helper function to get roles from context
-func GetRolesFromContext(ctx context.Context) ([]models.Role, bool) {
-	roles, ok := ctx.Value(RolesKey).([]models.Role)
-	return roles, ok
+// Helper function to get role from context
+func GetRolesFromContext(ctx context.Context) (*models.Role, bool) {
+	role, ok := ctx.Value(RolesKey).(*models.Role)
+	return role, ok
 }
 
 // Helper function to check if user has specific role
 func HasRole(ctx context.Context, roleName string) bool {
-	roles, ok := GetRolesFromContext(ctx)
-	if !ok {
+	role, ok := GetRolesFromContext(ctx)
+	if !ok || role == nil {
 		return false
 	}
-
-	for _, role := range roles {
-		if role.Name == roleName {
-			return true
-		}
-	}
-	return false
+	return role.Name == roleName
 }
 
-// SetRolesInContext sets roles in context
-func SetRolesInContext(ctx context.Context, roles []models.Role) context.Context {
-	return context.WithValue(ctx, RolesKey, roles)
+// SetRolesInContext sets role in context
+func SetRolesInContext(ctx context.Context, role *models.Role) context.Context {
+	return context.WithValue(ctx, RolesKey, role)
 }
