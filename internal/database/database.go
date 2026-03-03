@@ -26,7 +26,11 @@ func Connect(cfg *config.Config) error {
 	db, err := gorm.Open(postgres.New(postgres.Config{
 		DSN:                  dsn,
 		PreferSimpleProtocol: true, // Disables implicit prepared statement usage
-	}), &gorm.Config{})
+	}), &gorm.Config{
+		// Prevent AutoMigrate from issuing ALTER TABLE ... DROP/ADD CONSTRAINT
+		// statements, which can fail on Supabase/pgBouncer with pgx driver.
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to connect database: %w", err)
 	}
@@ -36,7 +40,23 @@ func Connect(cfg *config.Config) error {
 	return nil
 }
 
+// dropStaleIndex safely drops a GORM-managed unique index using the correct
+// DROP INDEX SQL (not ALTER TABLE DROP CONSTRAINT) to avoid SQLSTATE 42704.
+func dropStaleIndex(model interface{}, indexName string) {
+	if DB.Migrator().HasIndex(model, indexName) {
+		if err := DB.Migrator().DropIndex(model, indexName); err != nil {
+			log.Printf("[warn] could not drop stale index %s: %v", indexName, err)
+		}
+	}
+}
+
 func Migrate() error {
+	// Drop stale unique indexes that GORM tries to remove via ALTER TABLE DROP
+	// CONSTRAINT (wrong SQL). Must be listed here whenever a uniqueIndex tag is
+	// added/removed from a model after the table already exists in the DB.
+	dropStaleIndex(&models.LeaveType{}, "uni_leave_types_name")
+	dropStaleIndex(&models.LeaveRequest{}, "uni_leave_requests_action_token")
+
 	return DB.AutoMigrate(
 		&models.Department{},
 		&models.Role{},

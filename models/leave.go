@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type LeaveType struct {
@@ -29,7 +30,7 @@ type LeaveQuota struct {
 }
 
 // AfterFind hook to calculate RemainingDays
-func (l *LeaveQuota) AfterFind() (err error) {
+func (l *LeaveQuota) AfterFind(tx *gorm.DB) (err error) {
 	l.RemainingDays = l.TotalDays - l.UsedDays
 	return
 }
