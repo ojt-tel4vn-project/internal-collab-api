@@ -110,6 +110,7 @@ func (s *employeeServiceImpl) CreateEmployee(req *employee.CreateEmployeeRequest
 		DepartmentID: req.DepartmentID,
 		Position:     req.Position,
 		ManagerID:    req.ManagerID,
+		RoleID:       req.RoleID,
 		JoinDate:     joinDate,
 		Status:       models.StatusPending, // Pending until first-time setup
 	}
@@ -296,6 +297,9 @@ func (s *employeeServiceImpl) UpdateEmployee(id uuid.UUID, req *employee.UpdateE
 	}
 	if req.Status != nil {
 		emp.Status = models.Status(*req.Status)
+	}
+	if req.RoleID != nil {
+		emp.RoleID = req.RoleID
 	}
 
 	// Save updates

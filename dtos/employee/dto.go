@@ -17,6 +17,7 @@ type CreateEmployeeRequest struct {
 	DepartmentID *uuid.UUID `json:"department_id,omitempty"`
 	Position     string     `json:"position" binding:"required"`
 	ManagerID    *uuid.UUID `json:"manager_id,omitempty"`
+	RoleID       *uuid.UUID `json:"role_id,omitempty"`
 	JoinDate     string     `json:"join_date"` // Format: YYYY-MM-DD, defaults to today
 }
 
@@ -45,6 +46,7 @@ type UpdateEmployeeRequest struct {
 	DepartmentID *uuid.UUID `json:"department_id"`
 	Position     *string    `json:"position"`
 	ManagerID    *uuid.UUID `json:"manager_id"`
+	RoleID       *uuid.UUID `json:"role_id"`
 	Status       *string    `json:"status"` // 'active', 'inactive'
 }
 
