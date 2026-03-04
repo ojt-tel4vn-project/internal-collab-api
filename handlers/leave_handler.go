@@ -62,6 +62,16 @@ func (h *LeaveHandler) RegisterRoutes(api huma.API) {
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.handleUpdateLeaveQuota)
 
+	// Get My Leave Requests (for employee)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-my-leave-requests",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/leave-requests",
+		Summary:     "Get My Leave Requests",
+		Tags:        []string{"Leave"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.handleGetMyLeaveRequests)
+
 	// Create Leave Request
 	huma.Register(api, huma.Operation{
 		OperationID: "create-leave-request",
@@ -182,8 +192,12 @@ func (h *LeaveHandler) handleUpdateLeaveQuota(ctx context.Context, input *struct
 	if err != nil {
 		return nil, huma.Error401Unauthorized("Missing authentication")
 	}
-	// Note: missing HR auth check here for brevity, usually use authPkg.Authorize
-	_ = claims
+
+	// HR-only: check role
+	if roleErr := middleware.CheckUserRole(claims.UserID, h.employeeRepo, "hr", "admin"); roleErr != nil {
+		return nil, huma.Error403Forbidden("Only HR or Admin can update leave quotas")
+	}
+
 	quotaID, err := uuid.Parse(input.ID)
 	if err != nil {
 		return nil, huma.Error400BadRequest("Invalid quota ID", err)
@@ -195,6 +209,47 @@ func (h *LeaveHandler) handleUpdateLeaveQuota(ctx context.Context, input *struct
 	}
 
 	return nil, nil
+}
+
+func (h *LeaveHandler) handleGetMyLeaveRequests(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true"`
+	Page          string `query:"page" default:"1"`
+	Limit         string `query:"limit" default:"20"`
+}) (*struct {
+	Body struct {
+		Data  []leave.LeaveRequestResponse `json:"data"`
+		Total int64                        `json:"total"`
+	}
+}, error) {
+	claims, err := middleware.ValidateJWTFromHeader(input.Authorization, h.jwtService)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Missing authentication")
+	}
+	employeeID := claims.UserID
+
+	page, _ := strconv.Atoi(input.Page)
+	limit, _ := strconv.Atoi(input.Limit)
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+
+	reqs, total, err := h.service.GetMyLeaveRequests(employeeID, page, limit)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to get leave requests", err)
+	}
+
+	res := &struct {
+		Body struct {
+			Data  []leave.LeaveRequestResponse `json:"data"`
+			Total int64                        `json:"total"`
+		}
+	}{}
+	res.Body.Data = reqs
+	res.Body.Total = total
+	return res, nil
 }
 
 func (h *LeaveHandler) handleCreateLeaveRequest(ctx context.Context, input *struct {

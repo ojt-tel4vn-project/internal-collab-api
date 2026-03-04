@@ -29,6 +29,7 @@ type LeaveService interface {
 	CancelLeaveRequest(employeeID uuid.UUID, id uuid.UUID) error
 	EmailActionLeaveRequest(token string, action string) error
 
+	GetMyLeaveRequests(employeeID uuid.UUID, page, limit int) ([]leave.LeaveRequestResponse, int64, error)
 	GetPendingLeaveRequests(managerID uuid.UUID, page, limit int) ([]leave.LeaveRequestResponse, int64, error)
 	GetCompanyLeaveOverview(year, month int) (*leave.LeaveOverview, error)
 }
@@ -283,6 +284,24 @@ func (s *leaveService) EmailActionLeaveRequest(token string, action string) erro
 		}
 		return nil
 	})
+}
+
+func (s *leaveService) GetMyLeaveRequests(employeeID uuid.UUID, page, limit int) ([]leave.LeaveRequestResponse, int64, error) {
+	emp, err := s.employeeRepo.FindByID(employeeID)
+	if err != nil || emp == nil {
+		return nil, 0, errors.New("employee not found")
+	}
+
+	reqs, total, err := s.repo.FindLeaveRequestsByEmployee(employeeID, page, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	res := make([]leave.LeaveRequestResponse, 0, len(reqs))
+	for _, req := range reqs {
+		res = append(res, *s.mapToResponse(&req, emp, req.LeaveType, req.Approver))
+	}
+	return res, total, nil
 }
 
 func (s *leaveService) GetPendingLeaveRequests(managerID uuid.UUID, page, limit int) ([]leave.LeaveRequestResponse, int64, error) {

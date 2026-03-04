@@ -3,6 +3,7 @@ package services
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,13 +36,15 @@ type employeeServiceImpl struct {
 	repo         repository.EmployeeRepository
 	password     crypto.PasswordService
 	emailService email.EmailService
+	appConfig    repository.AppConfigRepository
 }
 
-func NewEmployeeService(repo repository.EmployeeRepository, password crypto.PasswordService, emailService email.EmailService) EmployeeService {
+func NewEmployeeService(repo repository.EmployeeRepository, password crypto.PasswordService, emailService email.EmailService, appConfig repository.AppConfigRepository) EmployeeService {
 	return &employeeServiceImpl{
 		repo:         repo,
 		password:     password,
 		emailService: emailService,
+		appConfig:    appConfig,
 	}
 }
 
@@ -460,28 +463,49 @@ func (s *employeeServiceImpl) GetSubordinates(managerID uuid.UUID) (*employee.Li
 	}, nil
 }
 
-// Global in-memory config for now
-var currentBirthdayConfig = employee.BirthdayConfig{
+const birthdayConfigKey = "birthday_config"
+
+var defaultBirthdayConfig = employee.BirthdayConfig{
 	Enabled:          true,
 	NotificationTime: "09:00",
 	Channels:         []string{"in_app", "email"},
 }
 
 func (s *employeeServiceImpl) GetBirthdayConfig() (*employee.GetBirthdayConfigResponse, error) {
-	return &employee.GetBirthdayConfigResponse{
-		Data: currentBirthdayConfig,
-	}, nil
+	raw, err := s.appConfig.Get(birthdayConfigKey)
+	if err != nil {
+		// Key not found yet — return default without error
+		return &employee.GetBirthdayConfigResponse{Data: defaultBirthdayConfig}, nil
+	}
+
+	var cfg employee.BirthdayConfig
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		logger.Warn("Failed to parse birthday config from DB, using default", zap.Error(err))
+		return &employee.GetBirthdayConfigResponse{Data: defaultBirthdayConfig}, nil
+	}
+	return &employee.GetBirthdayConfigResponse{Data: cfg}, nil
 }
 
 func (s *employeeServiceImpl) UpdateBirthdayConfig(req *employee.UpdateBirthdayConfigRequest) (*employee.UpdateBirthdayConfigResponse, error) {
-	currentBirthdayConfig = employee.BirthdayConfig{
+	cfg := employee.BirthdayConfig{
 		Enabled:          req.Enabled,
 		NotificationTime: req.NotificationTime,
 		Channels:         req.Channels,
 	}
 
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		logger.Error("UpdateBirthdayConfig failed: marshal error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to save birthday config")
+	}
+
+	if err := s.appConfig.Set(birthdayConfigKey, string(raw)); err != nil {
+		logger.Error("UpdateBirthdayConfig failed: DB save error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to save birthday config")
+	}
+
 	return &employee.UpdateBirthdayConfigResponse{
 		Message: "Birthday configuration updated successfully",
-		Data:    currentBirthdayConfig,
+		Data:    cfg,
 	}, nil
 }

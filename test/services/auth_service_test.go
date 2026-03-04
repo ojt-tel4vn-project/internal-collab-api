@@ -27,7 +27,7 @@ func TestMain(m *testing.M) {
 
 func newAuthService(empRepo *mocks.MockEmployeeRepository, rtRepo *mocks.MockRefreshTokenRepository, jwt *mocks.MockJWTService, pw *mocks.MockPasswordService, email *mocks.MockEmailService) services.AuthService {
 	// Using mock JWT — no need to call crypto.InitJWT
-	return services.NewAuthService(empRepo, rtRepo, jwt, pw, email)
+	return services.NewAuthService(empRepo, rtRepo, jwt, pw, email, "http://localhost:3000")
 }
 
 func sampleEmployee() *models.Employee {

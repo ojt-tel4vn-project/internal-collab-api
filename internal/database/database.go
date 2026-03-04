@@ -68,6 +68,7 @@ func Migrate() error {
 		&models.RefreshToken{},
 		&models.AuditLog{},
 		&models.Notification{},
+		&models.AppConfig{},
 		&models.LeaveType{},
 		&models.LeaveQuota{},
 		&models.LeaveRequest{},

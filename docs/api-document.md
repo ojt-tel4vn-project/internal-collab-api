@@ -29,10 +29,10 @@ Phúc
 - 👤 Admin & RBAC (User Management, Roles, Permissions)
 - 📝 Audit Logs (Action Tracking, Export)
 - ⚙️ Background Jobs (Birthday, Points Reset, Auto-confirm)
-
-Trung
 - 📅 Attendance Tracking (Upload, Confirm, Dispute, Auto-confirm)
 - 🏖️ Leave Management (Request, Approve via System/Email, Quota)
+
+Trung
 - 🎁 Reward System (Points, Stickers, Leaderboard)
 - 📚 Document Management (Categories, Upload, Read Tracking)
 

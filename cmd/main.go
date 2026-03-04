@@ -67,6 +67,7 @@ func main() {
 	refreshTokenRepo := repository.NewRefreshTokenRepository(database.DB)
 	categoryRepo := repository.NewDocumentCategoryRepository(database.DB)
 	documentRepo := repository.NewDocumentRepository(database.DB)
+	appConfigRepo := repository.NewAppConfigRepository(database.DB)
 
 	// Utils
 	jwtService := crypto.NewJWTService()
@@ -94,8 +95,8 @@ func main() {
 	}
 
 	// Services
-	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService)
-	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService)
+	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService, cfg.Server.FrontendURL)
+	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService, appConfigRepo)
 	categoryService := services.NewDocumentCategoryService(categoryRepo)
 	documentService := services.NewDocumentService(documentRepo, storageService)
 

@@ -29,6 +29,7 @@ type authServiceImpl struct {
 	jwtService       crypto.JWTService
 	password         crypto.PasswordService
 	emailService     email.EmailService
+	frontendURL      string
 }
 
 func NewAuthService(
@@ -37,6 +38,7 @@ func NewAuthService(
 	jwtService crypto.JWTService,
 	password crypto.PasswordService,
 	emailService email.EmailService,
+	frontendURL string,
 ) AuthService {
 	return &authServiceImpl{
 		employeeRepo:     employeeRepo,
@@ -44,6 +46,7 @@ func NewAuthService(
 		jwtService:       jwtService,
 		password:         password,
 		emailService:     emailService,
+		frontendURL:      frontendURL,
 	}
 }
 
@@ -280,7 +283,7 @@ func (s *authServiceImpl) ForgotPassword(req *auth.ForgotPasswordRequest) (*auth
 	}
 
 	// Send email
-	resetLink := "http://localhost:3000/reset-password?token=" + token
+	resetLink := s.frontendURL + "/reset-password?token=" + token
 	if s.emailService != nil {
 		err := s.emailService.SendPasswordResetEmail(employee.Email, employee.FullName, resetLink)
 		if err != nil {

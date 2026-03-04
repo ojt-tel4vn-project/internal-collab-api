@@ -17,7 +17,8 @@ import (
 // ── helpers ──────────────────────────────────────────────────
 
 func newEmployeeService(empRepo *mocks.MockEmployeeRepository, pw *mocks.MockPasswordService, email *mocks.MockEmailService) services.EmployeeService {
-	return services.NewEmployeeService(empRepo, pw, email)
+	appCfg := &mocks.MockAppConfigRepository{}
+	return services.NewEmployeeService(empRepo, pw, email, appCfg)
 }
 
 func sampleCreateRequest() *empdto.CreateEmployeeRequest {
