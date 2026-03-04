@@ -32,8 +32,9 @@ func (r *documentRepositoryImpl) Create(doc *models.Document) error {
 func (r *documentRepositoryImpl) FindByRole(role string) ([]models.Document, error) {
 	var documents []models.Document
 	query := r.db.Order("created_at desc")
-	if role != "admin" {
-		query = query.Where("roles LIKE ?", "%"+role+"%")
+	// All employees can see public documents; admin/hr can see all
+	if role != "admin" && role != "hr" {
+		query = query.Where("is_public = ?", true)
 	}
 	err := query.Find(&documents).Error
 	return documents, err

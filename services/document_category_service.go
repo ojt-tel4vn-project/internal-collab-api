@@ -11,6 +11,7 @@ import (
 
 type DocumentCategoryService interface {
 	Create(name string, parentID *uuid.UUID) (*models.DocumentCategory, error)
+	List() ([]models.DocumentCategory, error)
 }
 
 type documentCategoryServiceImpl struct {
@@ -40,9 +41,13 @@ func (s *documentCategoryServiceImpl) Create(name string, parentID *uuid.UUID) (
 	category := &models.DocumentCategory{
 		Name:     name,
 		ParentID: parentID,
-	}	
+	}
 	if err := s.repo.Create(category); err != nil {
 		return nil, err
 	}
 	return category, nil
+}
+
+func (s *documentCategoryServiceImpl) List() ([]models.DocumentCategory, error) {
+	return s.repo.FindAll()
 }

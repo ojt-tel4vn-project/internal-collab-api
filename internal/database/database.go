@@ -72,5 +72,7 @@ func Migrate() error {
 		&models.LeaveType{},
 		&models.LeaveQuota{},
 		&models.LeaveRequest{},
+		&models.Attendance{},
+		&models.AttendanceComment{},
 	)
 }
