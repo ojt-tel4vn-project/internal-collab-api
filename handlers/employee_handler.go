@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -151,6 +152,18 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 			{"bearerAuth": {}},
 		},
 	}, h.UpdateProfile)
+
+	// Upload avatar
+	huma.Register(api, huma.Operation{
+		OperationID: "upload-avatar",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/employees/me/avatar",
+		Summary:     "Upload profile avatar (multipart/form-data, field: avatar)",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.UploadAvatar)
 }
 
 // validateHROrManagerAccess validates JWT and checks for HR or Manager role
@@ -506,4 +519,62 @@ func (h *EmployeeHandler) UpdateBirthdayConfig(ctx context.Context, input *struc
 	return &struct {
 		Body employee.UpdateBirthdayConfigResponse
 	}{Body: *resp}, nil
+}
+
+// UploadAvatar handles POST /api/v1/employees/me/avatar
+// Expects multipart/form-data with field name "avatar"
+func (h *EmployeeHandler) UploadAvatar(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+	RawBody       multipart.Form
+}) (*struct {
+	Body struct {
+		Message   string `json:"message"`
+		AvatarUrl string `json:"avatar_url"`
+	}
+}, error) {
+	if !strings.HasPrefix(input.Authorization, "Bearer ") {
+		return nil, huma.Error401Unauthorized("Invalid authorization format")
+	}
+
+	token := strings.TrimPrefix(input.Authorization, "Bearer ")
+	claims, err := h.jwtService.ValidateToken(token)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Invalid or expired token")
+	}
+
+	// Get "avatar" file from multipart form
+	files, ok := input.RawBody.File["avatar"]
+	if !ok || len(files) == 0 {
+		return nil, huma.Error400BadRequest("Field 'avatar' is required")
+	}
+	fh := files[0]
+
+	// Max size: 5 MB
+	if fh.Size > 5<<20 {
+		return nil, huma.Error400BadRequest("Avatar file must be under 5 MB")
+	}
+
+	f, err := fh.Open()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to read avatar file")
+	}
+	defer f.Close()
+
+	avatarURL, err := h.service.UploadAvatar(ctx, claims.UserID, f, fh.Filename)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to upload avatar", err)
+	}
+
+	return &struct {
+		Body struct {
+			Message   string `json:"message"`
+			AvatarUrl string `json:"avatar_url"`
+		}
+	}{Body: struct {
+		Message   string `json:"message"`
+		AvatarUrl string `json:"avatar_url"`
+	}{
+		Message:   "Avatar uploaded successfully",
+		AvatarUrl: avatarURL,
+	}}, nil
 }

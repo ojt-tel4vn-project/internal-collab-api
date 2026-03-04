@@ -96,7 +96,8 @@ func main() {
 
 	// Services
 	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService, cfg.Server.FrontendURL)
-	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService, appConfigRepo)
+	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService, appConfigRepo, storageService)
+
 	categoryService := services.NewDocumentCategoryService(categoryRepo)
 	documentService := services.NewDocumentService(documentRepo, storageService)
 

@@ -29,6 +29,11 @@ type LeaveQuota struct {
 	UpdatedAt     time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
+// TableName overrides the default table name to explicitly use leave_quotas
+func (LeaveQuota) TableName() string {
+	return "leave_quotas"
+}
+
 // AfterFind hook to calculate RemainingDays
 func (l *LeaveQuota) AfterFind(tx *gorm.DB) (err error) {
 	l.RemainingDays = l.TotalDays - l.UsedDays

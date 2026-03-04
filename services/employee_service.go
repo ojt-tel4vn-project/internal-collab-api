@@ -1,13 +1,18 @@
 package services
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"io"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/ojt-tel4vn-project/internal-collab-api/dtos/employee"
+	"github.com/ojt-tel4vn-project/internal-collab-api/internal/storage"
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/email"
@@ -25,6 +30,7 @@ type EmployeeService interface {
 	GetProfile(id uuid.UUID) (*employee.GetEmployeeResponse, error)
 	UpdateEmployee(id uuid.UUID, req *employee.UpdateEmployeeRequest) (*employee.UpdateEmployeeResponse, error)
 	UpdateProfile(id uuid.UUID, req *employee.UpdateProfileRequest) (*employee.UpdateProfileResponse, error)
+	UploadAvatar(ctx context.Context, employeeID uuid.UUID, file io.Reader, filename string) (string, error)
 	DeleteEmployee(id uuid.UUID) error
 	GetTodayBirthdays() (*employee.ListBirthdayResponse, error)
 	GetSubordinates(managerID uuid.UUID) (*employee.ListSubordinatesResponse, error)
@@ -37,14 +43,16 @@ type employeeServiceImpl struct {
 	password     crypto.PasswordService
 	emailService email.EmailService
 	appConfig    repository.AppConfigRepository
+	storage      *storage.SupabaseStorage
 }
 
-func NewEmployeeService(repo repository.EmployeeRepository, password crypto.PasswordService, emailService email.EmailService, appConfig repository.AppConfigRepository) EmployeeService {
+func NewEmployeeService(repo repository.EmployeeRepository, password crypto.PasswordService, emailService email.EmailService, appConfig repository.AppConfigRepository, stor *storage.SupabaseStorage) EmployeeService {
 	return &employeeServiceImpl{
 		repo:         repo,
 		password:     password,
 		emailService: emailService,
 		appConfig:    appConfig,
+		storage:      stor,
 	}
 }
 
@@ -362,6 +370,39 @@ func (s *employeeServiceImpl) UpdateProfile(id uuid.UUID, req *employee.UpdatePr
 	return &employee.UpdateProfileResponse{
 		Message: "Profile updated successfully",
 	}, nil
+}
+
+// UploadAvatar uploads an avatar image for the employee and stores the URL
+func (s *employeeServiceImpl) UploadAvatar(ctx context.Context, employeeID uuid.UUID, file io.Reader, filename string) (string, error) {
+	emp, err := s.repo.FindByID(employeeID)
+	if err != nil {
+		return "", response.NotFound("Employee not found")
+	}
+
+	// Validate extension
+	ext := strings.ToLower(filepath.Ext(filename))
+	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
+	if !allowed[ext] {
+		return "", response.BadRequest("Only image files are allowed (jpg, jpeg, png, gif, webp)")
+	}
+
+	// Upload to Supabase Storage under avatars/
+	path := "avatars/" + employeeID.String() + ext
+	publicURL, err := s.storage.UploadFile(ctx, path, file)
+	if err != nil {
+		logger.Error("UploadAvatar: storage upload failed", zap.Error(err))
+		return "", response.InternalServerError("Failed to upload avatar")
+	}
+
+	// Update avatar_url in DB
+	emp.AvatarUrl = publicURL
+	if err := s.repo.Update(emp); err != nil {
+		logger.Error("UploadAvatar: DB update failed", zap.Error(err))
+		return "", response.InternalServerError("Failed to save avatar URL")
+	}
+
+	logger.Info("Avatar uploaded", zap.String("employee_id", employeeID.String()), zap.String("url", publicURL))
+	return publicURL, nil
 }
 
 func (s *employeeServiceImpl) DeleteEmployee(id uuid.UUID) error {
