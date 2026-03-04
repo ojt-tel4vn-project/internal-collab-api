@@ -103,6 +103,9 @@ func main() {
 	leaveRepo := repository.NewLeaveRepository(database.DB)
 	leaveService := services.NewLeaveService(leaveRepo, employeeRepo, jwtService)
 
+	attendanceRepo := repository.NewAttendanceRepository(database.DB)
+	attendanceService := services.NewAttendanceService(attendanceRepo, employeeRepo, appConfigRepo)
+
 	// Cron Service
 	cronService := services.NewCronService(employeeRepo, emailService, notificationService)
 	cronService.Start()
@@ -142,7 +145,7 @@ func main() {
 	api := humagin.New(router, humaConfig)
 
 	// Register routes
-	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService)
+	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService, attendanceService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

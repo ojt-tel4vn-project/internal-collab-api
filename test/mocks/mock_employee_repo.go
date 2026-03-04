@@ -63,3 +63,11 @@ func (m *MockEmployeeRepository) FindSubordinates(managerID uuid.UUID) ([]models
 	args := m.Called(managerID)
 	return args.Get(0).([]models.Employee), args.Error(1)
 }
+
+func (m *MockEmployeeRepository) FindByEmployeeCode(code string) (*models.Employee, error) {
+	args := m.Called(code)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Employee), args.Error(1)
+}

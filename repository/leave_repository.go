@@ -154,7 +154,7 @@ func (r *leaveRepository) FindLeaveRequestsByEmployee(employeeID uuid.UUID, page
 	query := r.db.Model(&models.LeaveRequest{}).Where("employee_id = ?", employeeID)
 	query.Count(&total)
 
-	err := query.Preload("LeaveType").Preload("Approver").Order("created_at desc").Offset(offset).Limit(limit).Find(&reqs).Error
+	err := query.Preload("LeaveType").Preload("Approver").Order("submitted_at desc").Offset(offset).Limit(limit).Find(&reqs).Error
 	return reqs, total, err
 }
 
@@ -170,7 +170,7 @@ func (r *leaveRepository) FindPendingLeaveRequestsByManager(managerID uuid.UUID,
 
 	query.Count(&total)
 
-	err := query.Preload("Employee").Preload("LeaveType").Order("created_at asc").Offset(offset).Limit(limit).Find(&reqs).Error
+	err := query.Preload("Employee").Preload("LeaveType").Order("submitted_at asc").Offset(offset).Limit(limit).Find(&reqs).Error
 	return reqs, total, err
 }
 

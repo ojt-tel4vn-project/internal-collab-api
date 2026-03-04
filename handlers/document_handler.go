@@ -61,13 +61,25 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.CreateDocument)
 
-	// List documents
+	// List documents (HR sees all, employees see public)
 	huma.Register(api, huma.Operation{
 		OperationID: "list-documents",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/documents",
 		Summary:     "List all documents",
 		Tags:        []string{"Documents"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.ListDocuments)
+
+	// List documents - HR alias
+	huma.Register(api, huma.Operation{
+		OperationID: "list-hr-documents",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/hr/documents",
+		Summary:     "List all documents (HR)",
+		Tags:        []string{"HR", "Documents"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
@@ -142,6 +154,30 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 			{"bearerAuth": {}},
 		},
 	}, h.CreateDocumentCategory)
+
+	// List document categories (all authenticated users)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-document-categories",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/hr/document-category",
+		Summary:     "List document categories",
+		Tags:        []string{"Documents", "HR"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.ListDocumentCategories)
+
+	// List document categories - public alias
+	huma.Register(api, huma.Operation{
+		OperationID: "list-document-categories-public",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/documents/categories",
+		Summary:     "List document categories (all employees)",
+		Tags:        []string{"Documents"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.ListDocumentCategories)
 }
 
 // CreateDocument function
@@ -384,6 +420,34 @@ func (h *DocumentHandler) CreateDocumentCategory(
 		return nil, huma.Error500InternalServerError("Failed to create document category", err)
 	}
 	return &struct{ Body models.DocumentCategory }{Body: *result}, nil
+}
+
+// ListDocumentCategories lists all document categories
+func (h *DocumentHandler) ListDocumentCategories(
+	ctx context.Context,
+	input *struct {
+		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+	},
+) (*struct {
+	Body struct {
+		Data []models.DocumentCategory `json:"data"`
+	}
+}, error) {
+	_, err := authPkg.Authorize(input.Authorization, h.jwtService, h.employeeRepo, authPkg.AuthOptions{RequireActive: true})
+	if err != nil {
+		return nil, err
+	}
+	cats, err := h.categoryService.List()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to list categories", err)
+	}
+	return &struct {
+		Body struct {
+			Data []models.DocumentCategory `json:"data"`
+		}
+	}{Body: struct {
+		Data []models.DocumentCategory `json:"data"`
+	}{Data: cats}}, nil
 }
 
 func hasPermission(docRoles, userRole string) bool {
