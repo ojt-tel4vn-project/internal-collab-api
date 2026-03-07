@@ -74,5 +74,12 @@ func Migrate() error {
 		&models.LeaveRequest{},
 		&models.Attendance{},
 		&models.AttendanceComment{},
+		&models.DocumentCategory{},
+		&models.Document{},
+		&models.DocumentRead{},
+		&models.StickerType{},
+		&models.StickerTransaction{},
+		&models.PointBalance{},
+		&models.PointConfig{},
 	)
 }

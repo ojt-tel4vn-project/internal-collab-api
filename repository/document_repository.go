@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	models "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"gorm.io/gorm"
 )
 

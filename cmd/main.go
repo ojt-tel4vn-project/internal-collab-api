@@ -101,6 +101,9 @@ func main() {
 	categoryService := services.NewDocumentCategoryService(categoryRepo)
 	documentService := services.NewDocumentService(documentRepo, storageService)
 
+	stickerRepo := repository.NewStickerRepository(database.DB)
+	stickerService := services.NewStickerService(stickerRepo, repository.NewPointConfigRepository(database.DB), database.DB)
+
 	leaveRepo := repository.NewLeaveRepository(database.DB)
 	leaveService := services.NewLeaveService(leaveRepo, employeeRepo, jwtService)
 
@@ -146,7 +149,7 @@ func main() {
 	api := humagin.New(router, humaConfig)
 
 	// Register routes
-	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService, attendanceService)
+	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService, attendanceService, stickerService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)
