@@ -12,8 +12,9 @@ import (
 )
 
 type CommentService interface {
-	CreateComment(documentID, authorID uuid.UUID, req *commentDTO.CreateCommentRequest) (*commentDTO.CreateCommentResponse, error)
-	GetCommentsByDocument(documentID uuid.UUID) (*commentDTO.ListCommentsResponse, error)
+	CreateComment(attendanceID, authorID uuid.UUID, req *commentDTO.CreateCommentRequest) (*commentDTO.CreateCommentResponse, error)
+	GetCommentsByAttendance(attendanceID uuid.UUID) (*commentDTO.ListCommentsResponse, error)
+	MarkRead(commentID, requestorID uuid.UUID) (*commentDTO.MarkReadResponse, error)
 	DeleteComment(commentID, requestorID uuid.UUID, isHR bool) error
 }
 
@@ -33,26 +34,28 @@ func toCommentItem(c models.Comment) commentDTO.CommentItem {
 		author.AvatarUrl = c.Author.AvatarUrl
 	}
 	return commentDTO.CommentItem{
-		ID:         c.ID,
-		DocumentID: c.DocumentID,
-		Author:     author,
-		Content:    c.Content,
-		ParentID:   c.ParentID,
-		CreatedAt:  c.CreatedAt,
-		UpdatedAt:  c.UpdatedAt,
+		ID:           c.ID,
+		AttendanceID: c.AttendanceID,
+		Author:       author,
+		Content:      c.Content,
+		IsRead:       c.IsRead,
+		ParentID:     c.ParentID,
+		CreatedAt:    c.CreatedAt,
+		UpdatedAt:    c.UpdatedAt,
 	}
 }
 
-func (s *commentServiceImpl) CreateComment(documentID, authorID uuid.UUID, req *commentDTO.CreateCommentRequest) (*commentDTO.CreateCommentResponse, error) {
+func (s *commentServiceImpl) CreateComment(attendanceID, authorID uuid.UUID, req *commentDTO.CreateCommentRequest) (*commentDTO.CreateCommentResponse, error) {
 	if req.Content == "" {
 		return nil, response.BadRequest("Comment content cannot be empty")
 	}
 
 	comment := &models.Comment{
-		DocumentID: documentID,
-		AuthorID:   authorID,
-		Content:    req.Content,
-		ParentID:   req.ParentID,
+		AttendanceID: attendanceID,
+		AuthorID:     authorID,
+		Content:      req.Content,
+		ParentID:     req.ParentID,
+		IsRead:       false,
 	}
 
 	if err := s.repo.Create(comment); err != nil {
@@ -73,10 +76,10 @@ func (s *commentServiceImpl) CreateComment(documentID, authorID uuid.UUID, req *
 	}, nil
 }
 
-func (s *commentServiceImpl) GetCommentsByDocument(documentID uuid.UUID) (*commentDTO.ListCommentsResponse, error) {
-	comments, err := s.repo.FindByDocumentID(documentID)
+func (s *commentServiceImpl) GetCommentsByAttendance(attendanceID uuid.UUID) (*commentDTO.ListCommentsResponse, error) {
+	comments, err := s.repo.FindByAttendanceID(attendanceID)
 	if err != nil {
-		logger.Error("GetCommentsByDocument: DB error", zap.Error(err))
+		logger.Error("GetCommentsByAttendance: DB error", zap.Error(err))
 		return nil, response.InternalServerError("Failed to fetch comments")
 	}
 
@@ -89,6 +92,22 @@ func (s *commentServiceImpl) GetCommentsByDocument(documentID uuid.UUID) (*comme
 		Comments: items,
 		Total:    len(items),
 	}, nil
+}
+
+// MarkRead marks a comment as read. Only HR/manager or the attendance owner's manager can do this.
+func (s *commentServiceImpl) MarkRead(commentID, requestorID uuid.UUID) (*commentDTO.MarkReadResponse, error) {
+	_, err := s.repo.FindByID(commentID)
+	if err != nil {
+		return nil, response.NotFound("Comment not found")
+	}
+
+	if err := s.repo.MarkRead(commentID); err != nil {
+		logger.Error("MarkRead: DB error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to mark comment as read")
+	}
+
+	logger.Info("Comment marked as read", zap.String("comment_id", commentID.String()))
+	return &commentDTO.MarkReadResponse{Message: "Comment marked as read"}, nil
 }
 
 func (s *commentServiceImpl) DeleteComment(commentID, requestorID uuid.UUID, isHR bool) error {

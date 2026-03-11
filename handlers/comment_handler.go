@@ -28,33 +28,45 @@ func NewCommentHandler(service services.CommentService, jwtService crypto.JWTSer
 }
 
 func (h *CommentHandler) RegisterRoutes(api huma.API) {
-	// GET /api/v1/documents/{id}/comments  — list comments + total
+	// GET /api/v1/attendances/{id}/comments  — list comments of an attendance record
 	huma.Register(api, huma.Operation{
-		OperationID: "list-document-comments",
+		OperationID: "list-attendance-comments",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/documents/{id}/comments",
-		Summary:     "List comments for a document",
-		Tags:        []string{"Documents", "Comments"},
+		Path:        "/api/v1/attendances/{id}/comments",
+		Summary:     "List comments for an attendance record",
+		Tags:        []string{"Attendance", "Comments"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
 	}, h.ListComments)
 
-	// POST /api/v1/documents/{id}/comments  — add a comment
+	// POST /api/v1/attendances/{id}/comments  — employee adds a comment on their attendance
 	huma.Register(api, huma.Operation{
-		OperationID: "create-document-comment",
+		OperationID: "create-attendance-comment",
 		Method:      http.MethodPost,
-		Path:        "/api/v1/documents/{id}/comments",
-		Summary:     "Add a comment to a document",
-		Tags:        []string{"Documents", "Comments"},
+		Path:        "/api/v1/attendances/{id}/comments",
+		Summary:     "Add a comment to an attendance record",
+		Tags:        []string{"Attendance", "Comments"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
 	}, h.CreateComment)
 
+	// PATCH /api/v1/comments/{commentId}/read  — mark comment as read (HR/manager)
+	huma.Register(api, huma.Operation{
+		OperationID: "mark-comment-read",
+		Method:      http.MethodPatch,
+		Path:        "/api/v1/comments/{commentId}/read",
+		Summary:     "Mark a comment as read (HR/manager only)",
+		Tags:        []string{"Comments"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.MarkRead)
+
 	// DELETE /api/v1/comments/{commentId}  — delete a comment (author or HR)
 	huma.Register(api, huma.Operation{
-		OperationID: "delete-document-comment",
+		OperationID: "delete-attendance-comment",
 		Method:      http.MethodDelete,
 		Path:        "/api/v1/comments/{commentId}",
 		Summary:     "Delete a comment (author or HR/admin only)",
@@ -65,10 +77,10 @@ func (h *CommentHandler) RegisterRoutes(api huma.API) {
 	}, h.DeleteComment)
 }
 
-// ListComments GET /api/v1/documents/{id}/comments
+// ListComments GET /api/v1/attendances/{id}/comments
 func (h *CommentHandler) ListComments(ctx context.Context, input *struct {
 	Authorization string    `header:"Authorization" required:"true" doc:"Bearer token"`
-	ID            uuid.UUID `path:"id" doc:"Document ID"`
+	ID            uuid.UUID `path:"id" doc:"Attendance ID"`
 }) (*struct {
 	Body commentDTO.ListCommentsResponse
 }, error) {
@@ -77,7 +89,7 @@ func (h *CommentHandler) ListComments(ctx context.Context, input *struct {
 		return nil, err
 	}
 
-	resp, err := h.service.GetCommentsByDocument(input.ID)
+	resp, err := h.service.GetCommentsByAttendance(input.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to fetch comments", err)
 	}
@@ -87,10 +99,10 @@ func (h *CommentHandler) ListComments(ctx context.Context, input *struct {
 	}{Body: *resp}, nil
 }
 
-// CreateComment POST /api/v1/documents/{id}/comments
+// CreateComment POST /api/v1/attendances/{id}/comments
 func (h *CommentHandler) CreateComment(ctx context.Context, input *struct {
 	Authorization string    `header:"Authorization" required:"true" doc:"Bearer token"`
-	ID            uuid.UUID `path:"id" doc:"Document ID"`
+	ID            uuid.UUID `path:"id" doc:"Attendance ID"`
 	Body          commentDTO.CreateCommentRequest
 }) (*struct {
 	Body commentDTO.CreateCommentResponse
@@ -107,6 +119,30 @@ func (h *CommentHandler) CreateComment(ctx context.Context, input *struct {
 
 	return &struct {
 		Body commentDTO.CreateCommentResponse
+	}{Body: *resp}, nil
+}
+
+// MarkRead PATCH /api/v1/comments/{commentId}/read
+func (h *CommentHandler) MarkRead(ctx context.Context, input *struct {
+	Authorization string    `header:"Authorization" required:"true" doc:"Bearer token"`
+	CommentID     uuid.UUID `path:"commentId" doc:"Comment ID"`
+}) (*struct {
+	Body commentDTO.MarkReadResponse
+}, error) {
+	claims, err := authPkg.Authorize(input.Authorization, h.jwtService, h.employeeRepo, authPkg.AuthOptions{
+		Roles: []string{"hr", "manager", "admin"},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := h.service.MarkRead(input.CommentID, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &struct {
+		Body commentDTO.MarkReadResponse
 	}{Body: *resp}, nil
 }
 

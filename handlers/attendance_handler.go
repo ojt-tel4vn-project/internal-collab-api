@@ -73,10 +73,10 @@ func (h *AttendanceHandler) RegisterRoutes(api huma.API) {
 
 	// Add comment/dispute to attendance
 	huma.Register(api, huma.Operation{
-		OperationID:   "add-attendance-comment",
+		OperationID:   "add-attendance-dispute",
 		Method:        http.MethodPost,
-		Path:          "/api/v1/attendances/{id}/comments",
-		Summary:       "Add Comment to Attendance",
+		Path:          "/api/v1/attendances/{id}/disputes",
+		Summary:       "Add Dispute to Attendance",
 		Tags:          []string{"Attendance"},
 		Security:      []map[string][]string{{"bearerAuth": {}}},
 		DefaultStatus: 201,
@@ -84,10 +84,10 @@ func (h *AttendanceHandler) RegisterRoutes(api huma.API) {
 
 	// Review comment (HR only)
 	huma.Register(api, huma.Operation{
-		OperationID: "review-attendance-comment",
+		OperationID: "review-attendance-dispute",
 		Method:      http.MethodPost,
-		Path:        "/api/v1/attendances/comments/{comment_id}/review",
-		Summary:     "Review Attendance Comment (HR only)",
+		Path:        "/api/v1/attendances/disputes/{comment_id}/review",
+		Summary:     "Review Attendance Dispute (HR only)",
 		Tags:        []string{"Attendance"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.handleReviewComment)

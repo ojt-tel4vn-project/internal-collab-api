@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateCommentRequest payload for creating a comment
+// CreateCommentRequest payload for creating a comment on an attendance record
 type CreateCommentRequest struct {
 	Content  string     `json:"content" required:"true" doc:"Comment text"`
 	ParentID *uuid.UUID `json:"parent_id,omitempty" doc:"Parent comment ID for replies"`
@@ -21,16 +21,17 @@ type CommentAuthor struct {
 
 // CommentItem is a single comment in a list
 type CommentItem struct {
-	ID         uuid.UUID     `json:"id"`
-	DocumentID uuid.UUID     `json:"document_id"`
-	Author     CommentAuthor `json:"author"`
-	Content    string        `json:"content"`
-	ParentID   *uuid.UUID    `json:"parent_id,omitempty"`
-	CreatedAt  time.Time     `json:"created_at"`
-	UpdatedAt  time.Time     `json:"updated_at"`
+	ID           uuid.UUID     `json:"id"`
+	AttendanceID uuid.UUID     `json:"attendance_id"`
+	Author       CommentAuthor `json:"author"`
+	Content      string        `json:"content"`
+	IsRead       bool          `json:"is_read"`
+	ParentID     *uuid.UUID    `json:"parent_id,omitempty"`
+	CreatedAt    time.Time     `json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at"`
 }
 
-// ListCommentsResponse response for listing comments of a document
+// ListCommentsResponse response for listing comments of an attendance record
 type ListCommentsResponse struct {
 	Comments []CommentItem `json:"comments"`
 	Total    int           `json:"total"`
@@ -44,5 +45,10 @@ type CreateCommentResponse struct {
 
 // DeleteCommentResponse response after deleting a comment
 type DeleteCommentResponse struct {
+	Message string `json:"message"`
+}
+
+// MarkReadResponse response after marking a comment as read
+type MarkReadResponse struct {
 	Message string `json:"message"`
 }
