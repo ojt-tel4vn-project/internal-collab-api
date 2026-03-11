@@ -59,6 +59,21 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
+		RequestBody: &huma.RequestBody{
+			Content: map[string]*huma.MediaType{
+				"multipart/form-data": {
+					Schema: &huma.Schema{
+						Type: "object",
+						Properties: map[string]*huma.Schema{
+							"file":        {Type: "string", Format: "binary", Description: "File to upload (key: file)"},
+							"category_id": {Type: "string", Format: "uuid", Description: "Document category ID"},
+							"roles":       {Type: "string", Description: "Comma-separated roles that can access the document (default: employee)"},
+						},
+						Required: []string{"file", "category_id"},
+					},
+				},
+			},
+		},
 	}, h.CreateDocument)
 
 	// List documents (HR sees all, employees see public)
@@ -184,8 +199,8 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 func (h *DocumentHandler) CreateDocument(
 	ctx context.Context,
 	input *struct {
-		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
-		RawBody       multipart.Form
+		Authorization string         `header:"Authorization" required:"true" doc:"Bearer token"`
+		RawBody       multipart.Form `contentType:"multipart/form-data"`
 	},
 ) (*struct{ Body models.Document }, error) {
 	// Validate HR access
@@ -201,33 +216,26 @@ func (h *DocumentHandler) CreateDocument(
 		return nil, err
 	}
 
-	// Get form values
-	title := ""
-	if titles, ok := input.RawBody.Value["title"]; ok && len(titles) > 0 {
-		title = titles[0]
-	}
-	if title == "" {
-		return nil, huma.Error400BadRequest("Title is required")
-	}
-
-	categoryIDStr := ""
-	if categoryIDs, ok := input.RawBody.Value["category_id"]; ok && len(categoryIDs) > 0 {
-		categoryIDStr = categoryIDs[0]
-	}
-	if categoryIDStr == "" {
-		return nil, huma.Error400BadRequest("Category ID is required")
-	}
-	categoryID, err := uuid.Parse(categoryIDStr)
-	if err != nil {
-		return nil, huma.Error400BadRequest("Invalid category_id format")
-	}
-
-	// Get file
 	files, ok := input.RawBody.File["file"]
 	if !ok || len(files) == 0 {
-		return nil, huma.Error400BadRequest("File is required")
+		return nil, huma.Error400BadRequest("File is required (key: file)")
 	}
 	fileHeader := files[0]
+
+	rawFileName := fileHeader.Filename
+	title := strings.TrimSuffix(rawFileName, filepath.Ext(rawFileName))
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return nil, huma.Error400BadRequest("File name cannot be empty")
+	}
+
+	exists, err := h.service.ExistsByTitle(title)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to check document title uniqueness", err)
+	}
+	if exists {
+		return nil, huma.Error400BadRequest("A document with the same title already exists")
+	}
 
 	if fileHeader.Size > MaxFileSize {
 		return nil, huma.Error400BadRequest("File size exceeds the maximum limit (10 MB)")
@@ -239,63 +247,56 @@ func (h *DocumentHandler) CreateDocument(
 	}
 	defer file.Close()
 
+	// Get category_id
+	categoryIDStr := ""
+	if categoryIDs, ok := input.RawBody.Value["category_id"]; ok && len(categoryIDs) > 0 {
+		categoryIDStr = categoryIDs[0]
+	}
+	if categoryIDStr == "" {
+		return nil, huma.Error400BadRequest("Category ID is required")
+	}
+
+	categoryID, err := uuid.Parse(categoryIDStr)
+	if err != nil {
+		return nil, huma.Error400BadRequest("Invalid category_id format")
+	}
+
 	// Validate MIME type
 	buffer := make([]byte, 512)
 	_, err = file.Read(buffer)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to read uploaded file", err)
 	}
+
 	mimeType := http.DetectContentType(buffer)
 	if !AllowedMimeTypes[mimeType] {
-		return nil, huma.Error400BadRequest("Unsupported file type", nil)
+		return nil, huma.Error400BadRequest("Unsupported file type")
 	}
-	// Reset file read pointer
+
 	_, err = file.Seek(0, 0)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to reset file reader", err)
 	}
 
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-	allowedExts := map[string]bool{
-		".pdf":  true,
-		".doc":  true,
-		".docx": true,
-		".png":  true,
-		".jpg":  true,
-		".jpeg": true,
-	}
-	if !allowedExts[ext] {
-		return nil, huma.Error400BadRequest("Unsupported file extension", nil)
-	}
 
-	filename := uuid.New().String() + ext
+	filename := title + ext
 	path := "documents/" + filename
 
-	// Upload file to storage
+	// Upload file
 	fileURL, err := h.service.UploadFile(ctx, path, file)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to upload file", err)
 	}
 
-	roles := "employee" // Default role
+	roles := "employee"
 	if r, ok := input.RawBody.Value["roles"]; ok && len(r) > 0 {
 		roles = r[0]
-	}
-	allowed := map[string]bool{
-		"employee": true,
-		"manager":  true,
-		"hr":       true,
-	}
-
-	splitRoles := strings.Split(roles, ",")
-	for _, r := range splitRoles {
-		if !allowed[strings.TrimSpace(r)] {
-			return nil, huma.Error400BadRequest("invalid role")
-		}
 	}
 
 	doc := models.Document{
 		Title:      title,
+		FileName:   filename,
 		CategoryID: categoryID,
 		FilePath:   fileURL,
 		Roles:      roles,
@@ -308,7 +309,6 @@ func (h *DocumentHandler) CreateDocument(
 	}
 
 	return &struct{ Body models.Document }{Body: *result}, nil
-
 }
 
 // ListDocuments function
