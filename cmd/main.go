@@ -110,6 +110,9 @@ func main() {
 	attendanceRepo := repository.NewAttendanceRepository(database.DB)
 	attendanceService := services.NewAttendanceService(attendanceRepo, employeeRepo, appConfigRepo)
 
+	commentRepo := repository.NewCommentRepository(database.DB)
+	commentService := services.NewCommentService(commentRepo)
+
 	// Cron Service
 	cronService := services.NewCronService(employeeRepo, emailService, notificationService)
 	cronService.Start()
@@ -149,7 +152,19 @@ func main() {
 	api := humagin.New(router, humaConfig)
 
 	// Register routes
-	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService, attendanceService, stickerService)
+	routes.SetupRoutes(api,
+		authService,
+		employeeService,
+		auditLogService,
+		notificationService,
+		jwtService,
+		employeeRepo,
+		documentService,
+		categoryService,
+		leaveService,
+		attendanceService,
+		stickerService,
+		commentService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

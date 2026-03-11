@@ -33,6 +33,7 @@ type EmployeeService interface {
 	UploadAvatar(ctx context.Context, employeeID uuid.UUID, file io.Reader, filename string) (string, error)
 	DeleteEmployee(id uuid.UUID) error
 	GetTodayBirthdays() (*employee.ListBirthdayResponse, error)
+	GetAllBirthdays() (*employee.ListAllBirthdaysResponse, error)
 	GetSubordinates(managerID uuid.UUID) (*employee.ListSubordinatesResponse, error)
 	GetBirthdayConfig() (*employee.GetBirthdayConfigResponse, error)
 	UpdateBirthdayConfig(req *employee.UpdateBirthdayConfigRequest) (*employee.UpdateBirthdayConfigResponse, error)
@@ -189,9 +190,20 @@ func (s *employeeServiceImpl) GetAllEmployees() (*employee.ListEmployeesResponse
 	// Convert to summary
 	summaries := make([]employee.EmployeeSummary, len(employees))
 	for i, emp := range employees {
-		departmentName := ""
+		var deptBrief *employee.DepartmentBrief
 		if emp.Department != nil {
-			departmentName = emp.Department.Name
+			deptBrief = &employee.DepartmentBrief{
+				ID:   emp.Department.ID,
+				Name: emp.Department.Name,
+			}
+		}
+
+		var roleBrief *employee.RoleBrief
+		if emp.Role != nil {
+			roleBrief = &employee.RoleBrief{
+				ID:   emp.Role.ID,
+				Name: emp.Role.Name,
+			}
 		}
 
 		summaries[i] = employee.EmployeeSummary{
@@ -200,7 +212,9 @@ func (s *employeeServiceImpl) GetAllEmployees() (*employee.ListEmployeesResponse
 			FullName:     emp.FullName,
 			EmployeeCode: emp.EmployeeCode,
 			Position:     emp.Position,
-			Department:   departmentName,
+			Department:   deptBrief,
+			Role:         roleBrief,
+			AvatarUrl:    emp.AvatarUrl,
 			Status:       string(emp.Status),
 		}
 	}
@@ -229,9 +243,11 @@ func (s *employeeServiceImpl) GetEmployeeByID(id uuid.UUID) (*employee.GetEmploy
 		DateOfBirth:  emp.DateOfBirth,
 		Phone:        emp.Phone,
 		Address:      emp.Address,
+		AvatarUrl:    emp.AvatarUrl,
 		DepartmentID: emp.DepartmentID,
 		Position:     emp.Position,
 		ManagerID:    emp.ManagerID,
+		RoleID:       emp.RoleID,
 		JoinDate:     emp.JoinDate,
 		LeaveDate:    emp.LeaveDate,
 		Status:       string(emp.Status),
@@ -259,6 +275,14 @@ func (s *employeeServiceImpl) GetEmployeeByID(id uuid.UUID) (*employee.GetEmploy
 		}{
 			ID:       emp.Manager.ID,
 			FullName: emp.Manager.FullName,
+		}
+	}
+
+	// Add role info if exists
+	if emp.Role != nil {
+		resp.Role = &employee.RoleBrief{
+			ID:   emp.Role.ID,
+			Name: emp.Role.Name,
 		}
 	}
 
@@ -458,6 +482,35 @@ func (s *employeeServiceImpl) GetTodayBirthdays() (*employee.ListBirthdayRespons
 		Employees: summaries,
 		Total:     len(summaries),
 		Message:   msg,
+	}, nil
+}
+
+func (s *employeeServiceImpl) GetAllBirthdays() (*employee.ListAllBirthdaysResponse, error) {
+	employees, err := s.repo.FindAllBirthdays()
+	if err != nil {
+		logger.Error("GetAllBirthdays failed", zap.Error(err))
+		return nil, response.InternalServerError("Failed to fetch birthdays")
+	}
+
+	summaries := make([]employee.BirthdaySummary, len(employees))
+	for i, emp := range employees {
+		departmentName := ""
+		if emp.Department != nil {
+			departmentName = emp.Department.Name
+		}
+		summaries[i] = employee.BirthdaySummary{
+			ID:         emp.ID,
+			FullName:   emp.FullName,
+			Email:      emp.Email,
+			Department: departmentName,
+			Position:   emp.Position,
+			BirthDate:  emp.DateOfBirth.Format("2006-01-02"),
+		}
+	}
+
+	return &employee.ListAllBirthdaysResponse{
+		Employees: summaries,
+		Total:     len(summaries),
 	}, nil
 }
 

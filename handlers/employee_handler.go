@@ -98,6 +98,17 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 	}, h.GetTodayBirthdays)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "get-all-birthdays",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/employees/birthdays",
+		Summary:     "Get all employee birthdays (for calendar)",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.GetAllBirthdays)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "get-birthday-config",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/employees/birthdays/config",
@@ -395,6 +406,30 @@ func (h *EmployeeHandler) GetTodayBirthdays(ctx context.Context, input *struct {
 	}{Body: *resp}, nil
 }
 
+// GetAllBirthdays GET /api/v1/employees/birthdays — any authenticated employee
+func (h *EmployeeHandler) GetAllBirthdays(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+}) (*struct {
+	Body employee.ListAllBirthdaysResponse
+}, error) {
+	if !strings.HasPrefix(input.Authorization, "Bearer ") {
+		return nil, huma.Error401Unauthorized("Invalid authorization format")
+	}
+	_, err := h.jwtService.ValidateToken(strings.TrimPrefix(input.Authorization, "Bearer "))
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Invalid or expired token")
+	}
+
+	resp, err := h.service.GetAllBirthdays()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to fetch birthdays", err)
+	}
+
+	return &struct {
+		Body employee.ListAllBirthdaysResponse
+	}{Body: *resp}, nil
+}
+
 func (h *EmployeeHandler) GetSubordinates(ctx context.Context, input *struct {
 	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 }) (*struct {
@@ -521,8 +556,8 @@ func (h *EmployeeHandler) UpdateBirthdayConfig(ctx context.Context, input *struc
 	}{Body: *resp}, nil
 }
 
-// UploadAvatar handles POST /api/v1/employees/me/avatar
-// Expects multipart/form-data with field name "avatar"
+// UploadAvatar handles POST /api/v1/employees/me/avatar.
+// The multipart form can use any file field name (avatar, file, filename, image, photo).
 func (h *EmployeeHandler) UploadAvatar(ctx context.Context, input *struct {
 	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 	RawBody       multipart.Form
@@ -542,12 +577,20 @@ func (h *EmployeeHandler) UploadAvatar(ctx context.Context, input *struct {
 		return nil, huma.Error401Unauthorized("Invalid or expired token")
 	}
 
-	// Get "avatar" file from multipart form
-	files, ok := input.RawBody.File["avatar"]
-	if !ok || len(files) == 0 {
-		return nil, huma.Error400BadRequest("Field 'avatar' is required")
+	// Accept any file field name (Huma UI sends as "filename"; curl users may use "avatar", "file", etc.)
+	var fh *multipart.FileHeader
+	for _, headers := range input.RawBody.File {
+		if len(headers) > 0 {
+			fh = headers[0]
+			break
+		}
 	}
-	fh := files[0]
+
+	if fh == nil {
+		return nil, huma.Error400BadRequest(
+			"No file found. Send the image as a multipart/form-data field (any field name, e.g. 'avatar').",
+		)
+	}
 
 	// Max size: 5 MB
 	if fh.Size > 5<<20 {
