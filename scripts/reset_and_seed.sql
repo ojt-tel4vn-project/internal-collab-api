@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS leave_types          CASCADE;
 DROP TABLE IF EXISTS notifications        CASCADE;
 DROP TABLE IF EXISTS audit_logs           CASCADE;
 DROP TABLE IF EXISTS refresh_tokens       CASCADE;
+DROP TABLE IF EXISTS comments             CASCADE;
 DROP TABLE IF EXISTS employees            CASCADE;
 DROP TABLE IF EXISTS roles                CASCADE;
 DROP TABLE IF EXISTS departments          CASCADE;
@@ -64,7 +65,7 @@ CREATE TABLE employees (
     manager_id                  UUID         REFERENCES employees(id)  ON DELETE SET NULL,
     join_date                   DATE         NOT NULL,
     leave_date                  DATE,
-    status                      VARCHAR(20)  DEFAULT 'active' CHECK (status IN ('active','inactive','pending')),
+    status                      VARCHAR(20)  DEFAULT 'active' CHECK (status IN ('active','offboard','pending')),
     last_login_at               TIMESTAMP,
     password_reset_token        VARCHAR(255),
     password_reset_expires_at   TIMESTAMP,
@@ -136,10 +137,8 @@ CREATE TABLE documents (
     file_path      VARCHAR(500) NOT NULL,
     file_size      BIGINT,
     mime_type      VARCHAR(100),
-    is_public      BOOLEAN      DEFAULT true,
+    roles          VARCHAR(100) DEFAULT 'employee',
     uploaded_by    UUID         NOT NULL REFERENCES employees(id),
-    version        INT          DEFAULT 1,
-    download_count INT          DEFAULT 0,
     created_at     TIMESTAMP    DEFAULT NOW(),
     updated_at     TIMESTAMP    DEFAULT NOW()
 );
@@ -197,6 +196,19 @@ CREATE TABLE leave_requests (
 -- GORM naming convention: uni_<table>_<column>
 CREATE UNIQUE INDEX "uni_leave_requests_action_token" ON leave_requests(action_token)
     WHERE action_token IS NOT NULL;
+
+-- comments (employee opinions/disputes about their attendance records)
+CREATE TABLE comments (
+    id            UUID      PRIMARY KEY DEFAULT uuid_generate_v4(),
+    attendance_id UUID      NOT NULL REFERENCES attendances(id) ON DELETE CASCADE,
+    author_id     UUID      NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    content       TEXT      NOT NULL,
+    is_read       BOOLEAN   NOT NULL DEFAULT false,
+    parent_id     UUID      REFERENCES comments(id) ON DELETE SET NULL,
+    created_at    TIMESTAMP DEFAULT NOW(),
+    updated_at    TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_comments_attendance_id ON comments(attendance_id);
 
 -- ---------------------------------------------------------------------------
 -- 3. SEED: Departments
