@@ -115,6 +115,7 @@ type GetEmployeeResponse struct {
 	DateOfBirth  time.Time  `json:"date_of_birth"`
 	Phone        string     `json:"phone"`
 	Address      string     `json:"address"`
+	AvatarUrl    string     `json:"avatar_url"`
 	DepartmentID *uuid.UUID `json:"department_id"`
 	Department   *struct {
 		ID   uuid.UUID `json:"id"`
@@ -126,6 +127,8 @@ type GetEmployeeResponse struct {
 		ID       uuid.UUID `json:"id"`
 		FullName string    `json:"full_name"`
 	} `json:"manager,omitempty"`
+	RoleID    *uuid.UUID   `json:"role_id"`
+	Role      *RoleBrief   `json:"role,omitempty"`
 	JoinDate    time.Time  `json:"join_date"`
 	LeaveDate   *time.Time `json:"leave_date,omitempty"`
 	Status      string     `json:"status"`

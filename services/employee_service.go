@@ -243,9 +243,11 @@ func (s *employeeServiceImpl) GetEmployeeByID(id uuid.UUID) (*employee.GetEmploy
 		DateOfBirth:  emp.DateOfBirth,
 		Phone:        emp.Phone,
 		Address:      emp.Address,
+		AvatarUrl:    emp.AvatarUrl,
 		DepartmentID: emp.DepartmentID,
 		Position:     emp.Position,
 		ManagerID:    emp.ManagerID,
+		RoleID:       emp.RoleID,
 		JoinDate:     emp.JoinDate,
 		LeaveDate:    emp.LeaveDate,
 		Status:       string(emp.Status),
@@ -273,6 +275,14 @@ func (s *employeeServiceImpl) GetEmployeeByID(id uuid.UUID) (*employee.GetEmploy
 		}{
 			ID:       emp.Manager.ID,
 			FullName: emp.Manager.FullName,
+		}
+	}
+
+	// Add role info if exists
+	if emp.Role != nil {
+		resp.Role = &employee.RoleBrief{
+			ID:   emp.Role.ID,
+			Name: emp.Role.Name,
 		}
 	}
 
