@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -557,8 +556,8 @@ func (h *EmployeeHandler) UpdateBirthdayConfig(ctx context.Context, input *struc
 	}{Body: *resp}, nil
 }
 
-// UploadAvatar handles POST /api/v1/employees/me/avatar
-// Expects multipart/form-data with field name "avatar"
+// UploadAvatar handles POST /api/v1/employees/me/avatar.
+// The multipart form can use any file field name (avatar, file, filename, image, photo).
 func (h *EmployeeHandler) UploadAvatar(ctx context.Context, input *struct {
 	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 	RawBody       multipart.Form
@@ -578,30 +577,20 @@ func (h *EmployeeHandler) UploadAvatar(ctx context.Context, input *struct {
 		return nil, huma.Error401Unauthorized("Invalid or expired token")
 	}
 
-	// Get file from multipart form.
-	// Try common field names: "avatar", "file", "image", "photo"
-	var fileHeaders []*multipart.FileHeader
-	var foundKey string
-	for _, key := range []string{"avatar", "file", "image", "photo"} {
-		if fhs, ok := input.RawBody.File[key]; ok && len(fhs) > 0 {
-			fileHeaders = fhs
-			foundKey = key
+	// Accept any file field name (Huma UI sends as "filename"; curl users may use "avatar", "file", etc.)
+	var fh *multipart.FileHeader
+	for _, headers := range input.RawBody.File {
+		if len(headers) > 0 {
+			fh = headers[0]
 			break
 		}
 	}
 
-	if len(fileHeaders) == 0 {
-		// Log available keys to help debug
-		availableKeys := make([]string, 0, len(input.RawBody.File))
-		for k := range input.RawBody.File {
-			availableKeys = append(availableKeys, k)
-		}
+	if fh == nil {
 		return nil, huma.Error400BadRequest(
-			fmt.Sprintf("Field 'avatar' is required. Received form fields: %v. Use field name 'avatar' in your multipart form.", availableKeys),
+			"No file found. Send the image as a multipart/form-data field (any field name, e.g. 'avatar').",
 		)
 	}
-	_ = foundKey // field name used (for logging)
-	fh := fileHeaders[0]
 
 	// Max size: 5 MB
 	if fh.Size > 5<<20 {
