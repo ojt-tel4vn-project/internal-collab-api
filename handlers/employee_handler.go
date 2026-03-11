@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -96,6 +97,17 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 			{"bearerAuth": {}},
 		},
 	}, h.GetTodayBirthdays)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-all-birthdays",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/employees/birthdays",
+		Summary:     "Get all employee birthdays (for calendar)",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.GetAllBirthdays)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-birthday-config",
@@ -395,6 +407,30 @@ func (h *EmployeeHandler) GetTodayBirthdays(ctx context.Context, input *struct {
 	}{Body: *resp}, nil
 }
 
+// GetAllBirthdays GET /api/v1/employees/birthdays — any authenticated employee
+func (h *EmployeeHandler) GetAllBirthdays(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+}) (*struct {
+	Body employee.ListAllBirthdaysResponse
+}, error) {
+	if !strings.HasPrefix(input.Authorization, "Bearer ") {
+		return nil, huma.Error401Unauthorized("Invalid authorization format")
+	}
+	_, err := h.jwtService.ValidateToken(strings.TrimPrefix(input.Authorization, "Bearer "))
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Invalid or expired token")
+	}
+
+	resp, err := h.service.GetAllBirthdays()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to fetch birthdays", err)
+	}
+
+	return &struct {
+		Body employee.ListAllBirthdaysResponse
+	}{Body: *resp}, nil
+}
+
 func (h *EmployeeHandler) GetSubordinates(ctx context.Context, input *struct {
 	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 }) (*struct {
@@ -542,12 +578,30 @@ func (h *EmployeeHandler) UploadAvatar(ctx context.Context, input *struct {
 		return nil, huma.Error401Unauthorized("Invalid or expired token")
 	}
 
-	// Get "avatar" file from multipart form
-	files, ok := input.RawBody.File["avatar"]
-	if !ok || len(files) == 0 {
-		return nil, huma.Error400BadRequest("Field 'avatar' is required")
+	// Get file from multipart form.
+	// Try common field names: "avatar", "file", "image", "photo"
+	var fileHeaders []*multipart.FileHeader
+	var foundKey string
+	for _, key := range []string{"avatar", "file", "image", "photo"} {
+		if fhs, ok := input.RawBody.File[key]; ok && len(fhs) > 0 {
+			fileHeaders = fhs
+			foundKey = key
+			break
+		}
 	}
-	fh := files[0]
+
+	if len(fileHeaders) == 0 {
+		// Log available keys to help debug
+		availableKeys := make([]string, 0, len(input.RawBody.File))
+		for k := range input.RawBody.File {
+			availableKeys = append(availableKeys, k)
+		}
+		return nil, huma.Error400BadRequest(
+			fmt.Sprintf("Field 'avatar' is required. Received form fields: %v. Use field name 'avatar' in your multipart form.", availableKeys),
+		)
+	}
+	_ = foundKey // field name used (for logging)
+	fh := fileHeaders[0]
 
 	// Max size: 5 MB
 	if fh.Size > 5<<20 {

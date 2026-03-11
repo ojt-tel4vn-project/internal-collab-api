@@ -71,3 +71,8 @@ func (m *MockEmployeeRepository) FindByEmployeeCode(code string) (*models.Employ
 	}
 	return args.Get(0).(*models.Employee), args.Error(1)
 }
+
+func (m *MockEmployeeRepository) FindAllBirthdays() ([]models.Employee, error) {
+	args := m.Called()
+	return args.Get(0).([]models.Employee), args.Error(1)
+}

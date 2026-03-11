@@ -81,13 +81,27 @@ type ListEmployeesResponse struct {
 }
 
 type EmployeeSummary struct {
-	ID           uuid.UUID `json:"id"`
-	Email        string    `json:"email"`
-	FullName     string    `json:"full_name"`
-	EmployeeCode string    `json:"employee_code"`
-	Position     string    `json:"position"`
-	Department   string    `json:"department"`
-	Status       string    `json:"status"`
+	ID           uuid.UUID        `json:"id"`
+	Email        string           `json:"email"`
+	FullName     string           `json:"full_name"`
+	EmployeeCode string           `json:"employee_code"`
+	Position     string           `json:"position"`
+	Department   *DepartmentBrief `json:"department"`
+	Role         *RoleBrief       `json:"role"`
+	AvatarUrl    string           `json:"avatar_url"`
+	Status       string           `json:"status"`
+}
+
+// DepartmentBrief is a slim department object
+type DepartmentBrief struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+// RoleBrief is a slim role object
+type RoleBrief struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
 }
 
 // Get Employee Detail DTOs
@@ -125,6 +139,12 @@ type ListBirthdayResponse struct {
 	Employees []BirthdaySummary `json:"employees"`
 	Total     int               `json:"total"`
 	Message   string            `json:"message"`
+}
+
+// ListAllBirthdaysResponse for the calendar endpoint (all employees, all dates)
+type ListAllBirthdaysResponse struct {
+	Employees []BirthdaySummary `json:"employees"`
+	Total     int               `json:"total"`
 }
 
 type BirthdaySummary struct {

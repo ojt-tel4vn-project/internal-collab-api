@@ -107,6 +107,9 @@ func main() {
 	attendanceRepo := repository.NewAttendanceRepository(database.DB)
 	attendanceService := services.NewAttendanceService(attendanceRepo, employeeRepo, appConfigRepo)
 
+	commentRepo := repository.NewCommentRepository(database.DB)
+	commentService := services.NewCommentService(commentRepo)
+
 	// Cron Service
 	cronService := services.NewCronService(employeeRepo, emailService, notificationService)
 	cronService.Start()
@@ -142,11 +145,14 @@ func main() {
 	router.Use(mw)
 
 	// Setup Huma API
+	// IMPORTANT: increase multipart memory limit (default is only 8 KB which
+	// causes file uploads to silently drop form fields exceeding that budget).
+	humagin.MultipartMaxMemory = 32 << 20 // 32 MB
 	humaConfig := huma.DefaultConfig("Internal Collab API", "1.0.0")
 	api := humagin.New(router, humaConfig)
 
 	// Register routes
-	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService, attendanceService)
+	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService, attendanceService, commentService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)
