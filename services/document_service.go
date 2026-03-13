@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	docDTO "github.com/ojt-tel4vn-project/internal-collab-api/dtos/document"
 	"github.com/ojt-tel4vn-project/internal-collab-api/internal/storage"
-	models "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/response"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
 )

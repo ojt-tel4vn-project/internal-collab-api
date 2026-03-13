@@ -101,6 +101,9 @@ func main() {
 	categoryService := services.NewDocumentCategoryService(categoryRepo)
 	documentService := services.NewDocumentService(documentRepo, storageService)
 
+	stickerRepo := repository.NewStickerRepository(database.DB)
+	stickerService := services.NewStickerService(stickerRepo, repository.NewPointConfigRepository(database.DB), database.DB)
+
 	leaveRepo := repository.NewLeaveRepository(database.DB)
 	leaveService := services.NewLeaveService(leaveRepo, employeeRepo, jwtService)
 
@@ -145,14 +148,11 @@ func main() {
 	router.Use(mw)
 
 	// Setup Huma API
-	// IMPORTANT: increase multipart memory limit (default is only 8 KB which
-	// causes file uploads to silently drop form fields exceeding that budget).
-	humagin.MultipartMaxMemory = 32 << 20 // 32 MB
 	humaConfig := huma.DefaultConfig("Internal Collab API", "1.0.0")
 	api := humagin.New(router, humaConfig)
 
 	// Register routes
-	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService, attendanceService, commentService)
+	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService, attendanceService, stickerService, commentService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

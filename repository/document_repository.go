@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	models "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"gorm.io/gorm"
 )
 
@@ -32,12 +32,12 @@ func (r *documentRepositoryImpl) Create(doc *models.Document) error {
 func (r *documentRepositoryImpl) FindByRole(role string) ([]models.Document, error) {
 	var documents []models.Document
 	query := r.db.Order("created_at desc")
-	
+
 	// 'admin' can see everything. Others only see if their role is in the list
 	if role != "admin" {
 		query = query.Where("roles = 'all' OR roles LIKE ?", "%"+role+"%")
 	}
-	
+
 	err := query.Find(&documents).Error
 	return documents, err
 }

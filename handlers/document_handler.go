@@ -12,7 +12,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 	docDTO "github.com/ojt-tel4vn-project/internal-collab-api/dtos/document"
-	models "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	authPkg "github.com/ojt-tel4vn-project/internal-collab-api/pkg/auth"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
@@ -181,13 +181,14 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 	}, h.ListDocumentCategories)
 }
 
+// CreateDocument function
 func (h *DocumentHandler) CreateDocument(
 	ctx context.Context,
 	input *struct {
 		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 		RawBody       multipart.Form
 	},
-) (*docDTO.SingleDocumentResponse, error) {
+) (*struct{ Body models.Document }, error) {
 	// Validate HR access
 	claims, err := authPkg.Authorize(
 		input.Authorization,
@@ -208,11 +209,6 @@ func (h *DocumentHandler) CreateDocument(
 	}
 	if title == "" {
 		return nil, huma.Error400BadRequest("Title is required")
-	}
-
-	description := ""
-	if descriptions, ok := input.RawBody.Value["description"]; ok && len(descriptions) > 0 {
-		description = descriptions[0]
 	}
 
 	categoryIDStr := ""
@@ -300,15 +296,11 @@ func (h *DocumentHandler) CreateDocument(
 	}
 
 	doc := models.Document{
-		Title:       title,
-		Description: description,
-		CategoryID:  categoryID,
-		FileName:    fileHeader.Filename,
-		FilePath:    fileURL,
-		FileSize:    fileHeader.Size,
-		MimeType:    mimeType,
-		Roles:       roles,
-		UploadedBy:  claims.UserID,
+		Title:      title,
+		CategoryID: categoryID,
+		FilePath:   fileURL,
+		Roles:      roles,
+		UploadedBy: claims.UserID,
 	}
 
 	result, err := h.service.Create(claims.UserID, doc)
@@ -316,21 +308,7 @@ func (h *DocumentHandler) CreateDocument(
 		return nil, huma.Error500InternalServerError("Failed to create document", err)
 	}
 
-	res := &docDTO.SingleDocumentResponse{}
-	res.Body.Data = docDTO.DocumentResponse{
-		ID:          result.ID,
-		Title:       result.Title,
-		Description: result.Description,
-		CategoryID:  result.CategoryID,
-		FileName:    result.FileName,
-		FileSize:    result.FileSize,
-		MimeType:    result.MimeType,
-		Roles:       result.Roles,
-		UploadedBy:  result.UploadedBy,
-		IsRead:      true, // người đăng coi như đã đọc
-		CreatedAt:   result.CreatedAt,
-	}
-	return res, nil
+	return &struct{ Body models.Document }{Body: *result}, nil
 
 }
 
@@ -340,7 +318,7 @@ func (h *DocumentHandler) ListDocuments(
 	input *struct {
 		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 	},
-) (*docDTO.ListDocumentResponse, error) {
+) (*struct{ Body []docDTO.DocumentResponse }, error) {
 	// Validate login
 	claims, err := authPkg.Authorize(
 		input.Authorization,
@@ -367,10 +345,7 @@ func (h *DocumentHandler) ListDocuments(
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to list documents", err)
 	}
-	
-	res := &docDTO.ListDocumentResponse{}
-	res.Body.Data = docs
-	return res, nil
+	return &struct{ Body []docDTO.DocumentResponse }{Body: docs}, nil
 }
 
 // ReadDocument function

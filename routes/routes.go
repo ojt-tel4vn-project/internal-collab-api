@@ -20,6 +20,7 @@ func SetupRoutes(
 	categoryService services.DocumentCategoryService,
 	leaveService services.LeaveService,
 	attendanceService services.AttendanceService,
+	stickerService services.StickerService,
 	commentService services.CommentService,
 ) {
 	// Auth Routes (with JWT service)
@@ -42,10 +43,6 @@ func SetupRoutes(
 	// Document Routes (HR & All employees)
 	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo, categoryService)
 	documentHandler.RegisterRoutes(api)
-
-	// Comment Routes (all authenticated employees)
-	commentHandler := handlers.NewCommentHandler(commentService, jwtService, employeeRepo)
-	commentHandler.RegisterRoutes(api)
 
 	// Leave Routes
 	leaveHandler := handlers.NewLeaveHandler(leaveService, jwtService, employeeRepo)
