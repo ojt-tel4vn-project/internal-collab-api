@@ -81,5 +81,6 @@ func Migrate() error {
 		&models.StickerTransaction{},
 		&models.PointBalance{},
 		&models.PointConfig{},
+		&models.Comment{},
 	)
 }

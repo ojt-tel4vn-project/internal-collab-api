@@ -47,7 +47,7 @@ type UpdateEmployeeRequest struct {
 	Position     *string    `json:"position"`
 	ManagerID    *uuid.UUID `json:"manager_id"`
 	RoleID       *uuid.UUID `json:"role_id"`
-	Status       *string    `json:"status"` // 'active', 'inactive'
+	Status       *string    `json:"status"` // 'active', 'offboard'
 }
 
 type UpdateEmployeeResponse struct {
@@ -81,13 +81,27 @@ type ListEmployeesResponse struct {
 }
 
 type EmployeeSummary struct {
-	ID           uuid.UUID `json:"id"`
-	Email        string    `json:"email"`
-	FullName     string    `json:"full_name"`
-	EmployeeCode string    `json:"employee_code"`
-	Position     string    `json:"position"`
-	Department   string    `json:"department"`
-	Status       string    `json:"status"`
+	ID           uuid.UUID        `json:"id"`
+	Email        string           `json:"email"`
+	FullName     string           `json:"full_name"`
+	EmployeeCode string           `json:"employee_code"`
+	Position     string           `json:"position"`
+	Department   *DepartmentBrief `json:"department"`
+	Role         *RoleBrief       `json:"role"`
+	AvatarUrl    string           `json:"avatar_url"`
+	Status       string           `json:"status"`
+}
+
+// DepartmentBrief is a slim department object
+type DepartmentBrief struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+// RoleBrief is a slim role object
+type RoleBrief struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
 }
 
 // Get Employee Detail DTOs
@@ -101,6 +115,7 @@ type GetEmployeeResponse struct {
 	DateOfBirth  time.Time  `json:"date_of_birth"`
 	Phone        string     `json:"phone"`
 	Address      string     `json:"address"`
+	AvatarUrl    string     `json:"avatar_url"`
 	DepartmentID *uuid.UUID `json:"department_id"`
 	Department   *struct {
 		ID   uuid.UUID `json:"id"`
@@ -112,6 +127,8 @@ type GetEmployeeResponse struct {
 		ID       uuid.UUID `json:"id"`
 		FullName string    `json:"full_name"`
 	} `json:"manager,omitempty"`
+	RoleID      *uuid.UUID `json:"role_id"`
+	Role        *RoleBrief `json:"role,omitempty"`
 	JoinDate    time.Time  `json:"join_date"`
 	LeaveDate   *time.Time `json:"leave_date,omitempty"`
 	Status      string     `json:"status"`
@@ -125,6 +142,12 @@ type ListBirthdayResponse struct {
 	Employees []BirthdaySummary `json:"employees"`
 	Total     int               `json:"total"`
 	Message   string            `json:"message"`
+}
+
+// ListAllBirthdaysResponse for the calendar endpoint (all employees, all dates)
+type ListAllBirthdaysResponse struct {
+	Employees []BirthdaySummary `json:"employees"`
+	Total     int               `json:"total"`
 }
 
 type BirthdaySummary struct {

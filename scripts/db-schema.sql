@@ -56,7 +56,7 @@ CREATE TABLE employees (
     leave_date DATE,
     
     -- System
-    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'pending')),
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'offboard', 'pending')),
     last_login_at TIMESTAMP,
     
     -- Password Reset
@@ -304,8 +304,7 @@ CREATE TABLE documents (
     mime_type VARCHAR(100),
     
     -- Access control
-    is_public BOOLEAN DEFAULT true,
-    allowed_roles UUID[], -- array of role IDs
+    roles VARCHAR(100) DEFAULT 'employee',
     
     -- Metadata
     uploaded_by UUID NOT NULL REFERENCES employees(id),

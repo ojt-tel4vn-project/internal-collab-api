@@ -21,6 +21,7 @@ func SetupRoutes(
 	leaveService services.LeaveService,
 	attendanceService services.AttendanceService,
 	stickerService services.StickerService,
+	commentService services.CommentService,
 ) {
 	// Auth Routes (with JWT service)
 	authHandler := handlers.NewAuthHandler(authService, jwtService)
@@ -50,8 +51,4 @@ func SetupRoutes(
 	// Attendance Routes
 	attendanceHandler := handlers.NewAttendanceHandler(attendanceService, jwtService, employeeRepo)
 	attendanceHandler.RegisterRoutes(api)
-
-	// Sticker Routes
-	stickerHandler := handlers.NewStickerHandler(stickerService, jwtService, employeeRepo)
-	stickerHandler.RegisterRoutes(api)
 }

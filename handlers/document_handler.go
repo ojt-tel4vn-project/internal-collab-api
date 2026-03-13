@@ -11,7 +11,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
+	docDTO "github.com/ojt-tel4vn-project/internal-collab-api/dtos/document"
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
+	models "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
 	authPkg "github.com/ojt-tel4vn-project/internal-collab-api/pkg/auth"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
