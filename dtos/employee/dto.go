@@ -47,7 +47,7 @@ type UpdateEmployeeRequest struct {
 	Position     *string    `json:"position"`
 	ManagerID    *uuid.UUID `json:"manager_id"`
 	RoleID       *uuid.UUID `json:"role_id"`
-	Status       *string    `json:"status"` // 'active', 'inactive'
+	Status       *string    `json:"status"` // 'active', 'offboard'
 }
 
 type UpdateEmployeeResponse struct {
@@ -127,8 +127,8 @@ type GetEmployeeResponse struct {
 		ID       uuid.UUID `json:"id"`
 		FullName string    `json:"full_name"`
 	} `json:"manager,omitempty"`
-	RoleID    *uuid.UUID   `json:"role_id"`
-	Role      *RoleBrief   `json:"role,omitempty"`
+	RoleID      *uuid.UUID `json:"role_id"`
+	Role        *RoleBrief `json:"role,omitempty"`
 	JoinDate    time.Time  `json:"join_date"`
 	LeaveDate   *time.Time `json:"leave_date,omitempty"`
 	Status      string     `json:"status"`

@@ -8,9 +8,10 @@ import (
 
 type CommentRepository interface {
 	Create(comment *models.Comment) error
-	FindByDocumentID(documentID uuid.UUID) ([]models.Comment, error)
-	CountByDocumentID(documentID uuid.UUID) (int64, error)
+	FindByAttendanceID(attendanceID uuid.UUID) ([]models.Comment, error)
+	CountByAttendanceID(attendanceID uuid.UUID) (int64, error)
 	FindByID(id uuid.UUID) (*models.Comment, error)
+	MarkRead(id uuid.UUID) error
 	Delete(id uuid.UUID) error
 }
 
@@ -26,19 +27,19 @@ func (r *commentRepository) Create(comment *models.Comment) error {
 	return r.db.Create(comment).Error
 }
 
-func (r *commentRepository) FindByDocumentID(documentID uuid.UUID) ([]models.Comment, error) {
+func (r *commentRepository) FindByAttendanceID(attendanceID uuid.UUID) ([]models.Comment, error) {
 	var comments []models.Comment
 	err := r.db.
 		Preload("Author").
-		Where("document_id = ?", documentID).
+		Where("attendance_id = ?", attendanceID).
 		Order("created_at ASC").
 		Find(&comments).Error
 	return comments, err
 }
 
-func (r *commentRepository) CountByDocumentID(documentID uuid.UUID) (int64, error) {
+func (r *commentRepository) CountByAttendanceID(attendanceID uuid.UUID) (int64, error) {
 	var count int64
-	err := r.db.Model(&models.Comment{}).Where("document_id = ?", documentID).Count(&count).Error
+	err := r.db.Model(&models.Comment{}).Where("attendance_id = ?", attendanceID).Count(&count).Error
 	return count, err
 }
 
@@ -49,6 +50,10 @@ func (r *commentRepository) FindByID(id uuid.UUID) (*models.Comment, error) {
 		return nil, err
 	}
 	return &comment, nil
+}
+
+func (r *commentRepository) MarkRead(id uuid.UUID) error {
+	return r.db.Model(&models.Comment{}).Where("id = ?", id).Update("is_read", true).Error
 }
 
 func (r *commentRepository) Delete(id uuid.UUID) error {

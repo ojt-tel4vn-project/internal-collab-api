@@ -11,6 +11,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
+	docDTO "github.com/ojt-tel4vn-project/internal-collab-api/dtos/document"
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	authPkg "github.com/ojt-tel4vn-project/internal-collab-api/pkg/auth"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
@@ -279,6 +280,17 @@ func (h *DocumentHandler) CreateDocument(
 	}
 
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	allowedExts := map[string]bool{
+		".pdf":  true,
+		".doc":  true,
+		".docx": true,
+		".png":  true,
+		".jpg":  true,
+		".jpeg": true,
+	}
+	if !allowedExts[ext] {
+		return nil, huma.Error400BadRequest("Unsupported file extension", nil)
+	}
 
 	filename := title + ext
 	path := "documents/" + filename
@@ -292,6 +304,18 @@ func (h *DocumentHandler) CreateDocument(
 	roles := "employee"
 	if r, ok := input.RawBody.Value["roles"]; ok && len(r) > 0 {
 		roles = r[0]
+	}
+	allowed := map[string]bool{
+		"employee": true,
+		"manager":  true,
+		"hr":       true,
+	}
+
+	splitRoles := strings.Split(roles, ",")
+	for _, r := range splitRoles {
+		if !allowed[strings.TrimSpace(r)] {
+			return nil, huma.Error400BadRequest("invalid role")
+		}
 	}
 
 	doc := models.Document{
@@ -317,7 +341,7 @@ func (h *DocumentHandler) ListDocuments(
 	input *struct {
 		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 	},
-) (*struct{ Body []models.Document }, error) {
+) (*struct{ Body []docDTO.DocumentResponse }, error) {
 	// Validate login
 	claims, err := authPkg.Authorize(
 		input.Authorization,
@@ -340,11 +364,11 @@ func (h *DocumentHandler) ListDocuments(
 		userRole = employee.Role.Name
 	}
 
-	docs, err := h.service.List(userRole)
+	docs, err := h.service.List(userRole, claims.UserID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to list documents", err)
 	}
-	return &struct{ Body []models.Document }{Body: docs}, nil
+	return &struct{ Body []docDTO.DocumentResponse }{Body: docs}, nil
 }
 
 // ReadDocument function

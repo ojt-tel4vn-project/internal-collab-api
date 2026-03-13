@@ -10,7 +10,7 @@ type Status string
 
 const (
 	StatusActive   Status = "active"
-	StatusInActive Status = "inactive"
+	StatusOffBoard Status = "offboard"
 	StatusPending  Status = "pending"
 )
 
