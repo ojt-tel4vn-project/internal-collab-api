@@ -60,6 +60,7 @@ func Migrate() error {
 	// added/removed from a model after the table already exists in the DB.
 	dropStaleIndex(&models.LeaveType{}, "uni_leave_types_name")
 	dropStaleIndex(&models.LeaveRequest{}, "uni_leave_requests_action_token")
+	dropStaleIndex(&models.StickerType{}, "uni_sticker_types_name")
 
 	return DB.AutoMigrate(
 		&models.Department{},

@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	docDTO "github.com/ojt-tel4vn-project/internal-collab-api/dtos/document"
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
-	models "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
 	authPkg "github.com/ojt-tel4vn-project/internal-collab-api/pkg/auth"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
@@ -319,7 +318,7 @@ func (h *DocumentHandler) ListDocuments(
 	input *struct {
 		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 	},
-) (*struct{ Body []models.Document }, error) {
+) (*struct{ Body []docDTO.DocumentResponse }, error) {
 	// Validate login
 	claims, err := authPkg.Authorize(
 		input.Authorization,
@@ -342,11 +341,11 @@ func (h *DocumentHandler) ListDocuments(
 		userRole = employee.Role.Name
 	}
 
-	docs, err := h.service.List(userRole)
+	docs, err := h.service.List(userRole, claims.UserID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to list documents", err)
 	}
-	return &struct{ Body []models.Document }{Body: docs}, nil
+	return &struct{ Body []docDTO.DocumentResponse }{Body: docs}, nil
 }
 
 // ReadDocument function
