@@ -16,6 +16,7 @@ type DocumentRepository interface {
 	Exists(docID uuid.UUID) (bool, error)
 	FindByID(docID uuid.UUID) (*models.Document, error)
 	ExistsByTitle(title string) (bool, error)
+	Update(doc *models.Document) error
 }
 
 type documentRepositoryImpl struct {
@@ -75,6 +76,10 @@ func (r *documentRepositoryImpl) FindByID(docID uuid.UUID) (*models.Document, er
 		return nil, err
 	}
 	return &document, nil
+}
+
+func (r *documentRepositoryImpl) Update(doc *models.Document) error {
+	return r.db.Save(doc).Error
 }
 
 func (r *documentRepositoryImpl) ExistsByTitle(title string) (bool, error) {
