@@ -15,6 +15,8 @@ type DocumentRepository interface {
 	GetReadDocumentIDs(employeeID uuid.UUID) ([]uuid.UUID, error) // Added for mapping marks
 	Exists(docID uuid.UUID) (bool, error)
 	FindByID(docID uuid.UUID) (*models.Document, error)
+	ExistsByTitle(title string) (bool, error)
+	Update(doc *models.Document) error
 }
 
 type documentRepositoryImpl struct {
@@ -74,4 +76,16 @@ func (r *documentRepositoryImpl) FindByID(docID uuid.UUID) (*models.Document, er
 		return nil, err
 	}
 	return &document, nil
+}
+
+func (r *documentRepositoryImpl) Update(doc *models.Document) error {
+	return r.db.Save(doc).Error
+}
+
+func (r *documentRepositoryImpl) ExistsByTitle(title string) (bool, error) {
+	var count int64
+	err := r.db.Model(&models.Document{}).
+		Where("title = ?", title).
+		Count(&count).Error
+	return count > 0, err
 }
