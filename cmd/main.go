@@ -152,7 +152,19 @@ func main() {
 	api := humagin.New(router, humaConfig)
 
 	// Register routes
-	routes.SetupRoutes(api, authService, employeeService, auditLogService, notificationService, jwtService, employeeRepo, documentService, categoryService, leaveService, attendanceService, stickerService, commentService)
+	routes.SetupRoutes(api,
+		authService,
+		employeeService,
+		auditLogService,
+		notificationService,
+		jwtService,
+		employeeRepo,
+		documentService,
+		categoryService,
+		leaveService,
+		attendanceService,
+		stickerService,
+		commentService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

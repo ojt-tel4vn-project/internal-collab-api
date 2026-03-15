@@ -21,14 +21,17 @@ type PointBalance struct {
 }
 
 type StickerType struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"sticker_type_id"`
-	Name      string    `gorm:"type:varchar(100);not null" json:"name"`
-	PointCost int       `gorm:"not null" json:"point_cost"`
-	Category  string    `gorm:"type:varchar(50);not null;index" json:"category"`
-	IconURL   string    `gorm:"type:varchar(255);not null" json:"icon_url"`
-	IsActive  bool      `gorm:"default:true" json:"is_active"`
+	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"sticker_type_id"`
+	Name         string    `gorm:"type:varchar(100);not null" json:"name"`
+	Description  string    `gorm:"type:varchar(255)" json:"description"`
+	PointCost    int       `gorm:"not null" json:"point_cost"`
+	Category     string    `gorm:"type:varchar(50);not null;index" json:"category"`
+	IconURL      string    `gorm:"type:varchar(255);not null" json:"icon_url"`
+	IsActive     bool      `gorm:"default:true" json:"is_active"`
+	DisplayOrder int       `gorm:"default:0" json:"display_order"`
 
 	CreatedAt time.Time `gorm:"autoCreateTime"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime"`
 }
 
 type StickerTransaction struct {
