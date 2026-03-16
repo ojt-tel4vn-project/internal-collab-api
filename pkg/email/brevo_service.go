@@ -334,7 +334,9 @@ Your Colleagues
 
 // sendEmail is the core method to send email via Brevo
 func (s *brevoEmailService) sendEmail(to, toName, subject, htmlContent, textContent string) error {
-	ctx := context.Background()
+	ctx := context.WithValue(context.Background(), lib.ContextAPIKey, lib.APIKey{
+		Key: s.apiKey,
+	})
 
 	sendSmtpEmail := lib.SendSmtpEmail{
 		Sender: &lib.SendSmtpEmailSender{
