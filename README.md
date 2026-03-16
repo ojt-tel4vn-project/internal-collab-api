@@ -256,18 +256,21 @@ EMAIL_FROM_NAME=Internal Collaboration System
 - [x] Password management
 - [x] Email service (Brevo integration)
 
-### **Phase 2: Enhancements** (TODO)
+### **Phase 2: Enhancements**
 - [x] Token refresh endpoint
 - [x] Audit logging
 - [x] Rate limiting
-- [ ] Profile picture upload
+- [x] Async Email Queue (Go Channels) ⚡
 - [x] Email templates for more events
+- [ ] Profile picture upload
 
-### **Phase 3: Advanced Features** (TODO)
+### **Phase 3: Advanced Features**
+- [x] Server-Sent Events (SSE) Realtime Notification System 🔔
+- [x] Leave Management Quotas & Workflow
+- [x] Sticker System & Leaderboard
 - [ ] Multi-factor authentication (MFA)
 - [ ] SSO integration
 - [ ] Advanced reporting
-- [ ] Notification system
 
 ## 🤝 Contributing
 
