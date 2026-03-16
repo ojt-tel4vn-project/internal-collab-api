@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -63,14 +64,14 @@ func Load() *Config {
 			ExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
 		},
 		Email: EmailConfig{
-			BrevoAPIKey: getEnv("BREVO_API_KEY", ""),
-			FromEmail:   getEnv("EMAIL_FROM", "noreply@company.com"),
+			BrevoAPIKey: strings.TrimSpace(getEnv("BREVO_API_KEY", "")),
+			FromEmail:   strings.TrimSpace(getEnv("EMAIL_FROM", "noreply@company.com")),
 			FromName:    getEnv("EMAIL_FROM_NAME", "Internal Collaboration System"),
 		},
 		Supabase: SupabaseConfig{
-			URL:    getEnv("SUPABASE_URL", ""),
-			Bucket: getEnv("SUPABASE_BUCKET", ""),
-			APIKey: getEnv("SUPABASE_API_KEY", ""),
+			URL:    strings.TrimSpace(getEnv("SUPABASE_URL", "")),
+			Bucket: strings.TrimSpace(getEnv("SUPABASE_BUCKET", "")),
+			APIKey: strings.TrimSpace(getEnv("SUPABASE_API_KEY", "")),
 		},
 	}
 }
