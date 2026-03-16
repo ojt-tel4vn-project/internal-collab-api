@@ -69,6 +69,7 @@ func main() {
 	categoryRepo := repository.NewDocumentCategoryRepository(database.DB)
 	documentRepo := repository.NewDocumentRepository(database.DB)
 	appConfigRepo := repository.NewAppConfigRepository(database.DB)
+	departmentRepo := repository.NewDepartmentRepository(database.DB)
 
 	// Utils
 	jwtService := crypto.NewJWTService()
@@ -77,6 +78,9 @@ func main() {
 	// Audit Log
 	auditLogRepo := repository.NewAuditLogRepository(database.DB)
 	auditLogService := services.NewAuditLogService(auditLogRepo)
+
+	// Department
+	departmentService := services.NewDepartmentService(departmentRepo)
 
 	// Notifications & SSE
 	sseBroker := sse.NewSSEBroker(jwtService)
@@ -174,7 +178,8 @@ func main() {
 		leaveService,
 		attendanceService,
 		stickerService,
-		commentService)
+		commentService,
+		departmentService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

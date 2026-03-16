@@ -49,3 +49,7 @@ func FromModel(dept *models.Department) *DepartmentResponse {
 		UpdatedAt:   dept.UpdatedAt,
 	}
 }
+
+type ListDepartmentResponse struct {
+	Data []DepartmentResponse `json:"data"`
+}
