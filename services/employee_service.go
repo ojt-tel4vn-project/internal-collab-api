@@ -109,6 +109,19 @@ func (s *employeeServiceImpl) CreateEmployee(req *employee.CreateEmployeeRequest
 		return nil, response.InternalServerError("Failed to generate employee code")
 	}
 
+	// If no role is specified, assign default "employee" role
+	roleID := req.RoleID
+	if roleID == nil {
+		// Find default "employee" role
+		defaultRole, err := s.repo.FindRoleByName("employee")
+		if err != nil {
+			logger.Warn("CreateEmployee: default 'employee' role not found, proceeding without role", zap.Error(err))
+		} else {
+			roleID = &defaultRole.ID
+			logger.Info("CreateEmployee: assigned default 'employee' role", zap.String("role_id", defaultRole.ID.String()))
+		}
+	}
+
 	// Create employee model
 	newEmployee := models.Employee{
 		Email:        req.Email,
@@ -122,7 +135,7 @@ func (s *employeeServiceImpl) CreateEmployee(req *employee.CreateEmployeeRequest
 		DepartmentID: req.DepartmentID,
 		Position:     req.Position,
 		ManagerID:    req.ManagerID,
-		RoleID:       req.RoleID,
+		RoleID:       roleID,
 		JoinDate:     joinDate,
 		Status:       models.StatusPending, // Pending until first-time setup
 	}

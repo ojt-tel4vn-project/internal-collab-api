@@ -14,6 +14,7 @@ type EmployeeRepository interface {
 	FindEmployeesByBirthday(month, day int) ([]models.Employee, error)
 	FindSubordinates(managerID uuid.UUID) ([]models.Employee, error)
 	FindAllBirthdays() ([]models.Employee, error)
+	FindRoleByName(name string) (*models.Role, error)
 }
 
 type employeeRepository struct {
@@ -84,4 +85,11 @@ func (r *employeeRepository) FindSubordinates(managerID uuid.UUID) ([]models.Emp
 	var employees []models.Employee
 	err := r.db.Preload("Department").Where("manager_id = ?", managerID).Find(&employees).Error
 	return employees, err
+}
+
+// FindRoleByName finds a role by its name
+func (r *employeeRepository) FindRoleByName(name string) (*models.Role, error) {
+	var role models.Role
+	err := r.db.Where("name = ?", name).First(&role).Error
+	return &role, err
 }
