@@ -9,6 +9,7 @@ import (
 	docModels "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var DB *gorm.DB
@@ -26,8 +27,15 @@ func Connect(cfg *config.Config) error {
 
 	db, err := gorm.Open(postgres.New(postgres.Config{
 		DSN:                  dsn,
-		PreferSimpleProtocol: true, // Disables implicit prepared statement usage
-	}), &gorm.Config{})
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{
+		// Prevent AutoMigrate from issuing ALTER TABLE ... DROP/ADD CONSTRAINT
+		// statements, which can fail on Supabase/pgBouncer.
+		DisableForeignKeyConstraintWhenMigrating: true,
+		// Raise slow-query threshold to 2s to suppress noise from Supabase
+		// network latency during migration schema queries (~200-400ms each).
+		Logger: logger.Default.LogMode(logger.Warn),
+	})
 	if err != nil {
 		return fmt.Errorf("failed to connect database: %w", err)
 	}
@@ -37,7 +45,24 @@ func Connect(cfg *config.Config) error {
 	return nil
 }
 
+// dropStaleIndex safely drops a GORM-managed unique index using the correct
+// DROP INDEX SQL (not ALTER TABLE DROP CONSTRAINT) to avoid SQLSTATE 42704.
+func dropStaleIndex(model interface{}, indexName string) {
+	if DB.Migrator().HasIndex(model, indexName) {
+		if err := DB.Migrator().DropIndex(model, indexName); err != nil {
+			log.Printf("[warn] could not drop stale index %s: %v", indexName, err)
+		}
+	}
+}
+
 func Migrate() error {
+	// Drop stale unique indexes that GORM tries to remove via ALTER TABLE DROP
+	// CONSTRAINT (wrong SQL). Must be listed here whenever a uniqueIndex tag is
+	// added/removed from a model after the table already exists in the DB.
+	dropStaleIndex(&models.LeaveType{}, "uni_leave_types_name")
+	dropStaleIndex(&models.LeaveRequest{}, "uni_leave_requests_action_token")
+	dropStaleIndex(&models.StickerType{}, "uni_sticker_types_name")
+
 	return DB.AutoMigrate(
 		&models.Employee{},
 		&models.Role{},
@@ -50,5 +75,26 @@ func Migrate() error {
 		&models.RefreshToken{},
 		&models.AuditLog{},
 		&models.Notification{},
+		&models.AppConfig{},
+		&models.LeaveType{},
+		&models.LeaveQuota{},
+		&models.LeaveRequest{},
+		&models.Attendance{},
+		&models.AttendanceComment{},
+		&models.DocumentCategory{},
+		&models.Document{},
+		&models.DocumentRead{},
+		&models.StickerType{},
+		&models.StickerTransaction{},
+		&models.PointBalance{},
+		&models.PointConfig{},
+		&models.Comment{},
+		&models.DocumentCategory{},
+		&models.Document{},
+		&models.DocumentRead{},
+		&models.StickerType{},
+		&models.StickerTransaction{},
+		&models.PointBalance{},
+		&models.PointConfig{},
 	)
 }

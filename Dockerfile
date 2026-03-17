@@ -1,38 +1,50 @@
-# Build Stage
-FROM golang:alpine AS builder
+# ─────────────────────────────────────────────
+# Stage 1: Builder
+# ─────────────────────────────────────────────
+FROM golang:1.25-alpine AS builder
 
 # Install build tools
-RUN apk add --no-cache git
+RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app
 
-# Copy dependency files
+# Download dependencies first (leverages Docker layer cache)
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod download && go mod verify
 
 # Copy source code
 COPY . .
 
-# Build the application
-# We build a Linux binary named 'main' (not main.exe) because Docker containers run Linux
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/main.go
+# Build a statically-linked Linux binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-w -s" -o /app/server ./cmd/main.go
 
-# Production Stage
-FROM alpine:latest
+# ─────────────────────────────────────────────
+# Stage 2: Production image
+# ─────────────────────────────────────────────
+FROM alpine:3.19
+
+# Security: run as non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
-# Install certificates for external APIs (like Brevo)
-RUN apk --no-cache add ca-certificates
+# CA certs for HTTPS calls (Brevo, Supabase, etc.)
+RUN apk --no-cache add ca-certificates tzdata
 
-# Copy the binary from the builder stage
-COPY --from=builder /app/main .
+# Copy binary from builder
+COPY --from=builder /app/server .
 
-# Copy environment file example (optional, better to set via docker-compose)
-# COPY .env.example .env
+# Scripts (seed, clear) – optional, copy if needed at runtime
+COPY --from=builder /app/scripts ./scripts
 
-# Expose the port (matches default in .env)
+# Run as non-root
+USER appuser
+
+# Port exposed by the API
 EXPOSE 8080
 
-# Run the binary
-CMD ["./main"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -qO- http://localhost:8080/health || exit 1
+
+CMD ["./server"]

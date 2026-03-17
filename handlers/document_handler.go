@@ -11,24 +11,14 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
-	models "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
+	docDTO "github.com/ojt-tel4vn-project/internal-collab-api/dtos/document"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	authPkg "github.com/ojt-tel4vn-project/internal-collab-api/pkg/auth"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
+	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/utils"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
 	"github.com/ojt-tel4vn-project/internal-collab-api/services"
 )
-
-const (
-	MaxFileSize = 10 << 20 // 10 MB
-)
-
-var AllowedMimeTypes = map[string]bool{
-	"application/pdf":    true,
-	"application/msword": true,
-	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
-	"image/png":  true,
-	"image/jpeg": true,
-}
 
 type DocumentHandler struct {
 	service         services.DocumentService
@@ -37,7 +27,14 @@ type DocumentHandler struct {
 	categoryService services.DocumentCategoryService
 }
 
-// FileOutput không cần thiết nữa - dùng huma.StreamResponse thay thế
+var ContentTypeMap = map[string]string{
+	".pdf":  "application/pdf",
+	".png":  "image/png",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".doc":  "application/msword",
+	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
 
 func NewDocumentHandler(service services.DocumentService, jwtService crypto.JWTService, employeeRepo repository.EmployeeRepository, categoryService services.DocumentCategoryService) *DocumentHandler {
 	return &DocumentHandler{
@@ -49,7 +46,7 @@ func NewDocumentHandler(service services.DocumentService, jwtService crypto.JWTS
 }
 
 func (h *DocumentHandler) RegisterRoutes(api huma.API) {
-	// Document endpoints (require authentication)
+	//Create document (HR only)
 	huma.Register(api, huma.Operation{
 		OperationID: "create-document",
 		Method:      http.MethodPost,
@@ -59,8 +56,25 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
+		RequestBody: &huma.RequestBody{
+			Content: map[string]*huma.MediaType{
+				"multipart/form-data": {
+					Schema: &huma.Schema{
+						Type: "object",
+						Properties: map[string]*huma.Schema{
+							"file":        {Type: "string", Format: "binary", Description: "File to upload (key: file)"},
+							"category_id": {Type: "string", Format: "uuid", Description: "Document category ID"},
+							"roles":       {Type: "string", Description: "Comma-separated roles that can access the document (default: employee)"},
+							"description": {Type: "string", Description: "Description of the document"},
+						},
+						Required: []string{"file", "category_id"},
+					},
+				},
+			},
+		},
 	}, h.CreateDocument)
 
+	// List documents (HR sees all, employees see public)
 	huma.Register(api, huma.Operation{
 		OperationID: "list-documents",
 		Method:      http.MethodGet,
@@ -72,6 +86,19 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.ListDocuments)
 
+	// List documents - HR alias
+	huma.Register(api, huma.Operation{
+		OperationID: "list-hr-documents",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/hr/documents",
+		Summary:     "List all documents (HR)",
+		Tags:        []string{"HR", "Documents"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.ListDocuments)
+
+	// Mark document as read
 	huma.Register(api, huma.Operation{
 		OperationID: "read-document",
 		Method:      http.MethodPost,
@@ -83,6 +110,7 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.ReadDocument)
 
+	// View document (inline)
 	huma.Register(api, huma.Operation{
 		OperationID: "view-document",
 		Method:      http.MethodGet,
@@ -105,6 +133,7 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.ViewDocument)
 
+	// Download document (attachment)
 	huma.Register(api, huma.Operation{
 		OperationID: "download-document",
 		Method:      http.MethodGet,
@@ -127,6 +156,7 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.DownloadDocument)
 
+	// Create document category (HR only)
 	huma.Register(api, huma.Operation{
 		OperationID: "create-document-category",
 		Method:      http.MethodPost,
@@ -137,16 +167,53 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 			{"bearerAuth": {}},
 		},
 	}, h.CreateDocumentCategory)
+
+	// List document categories (all authenticated users)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-document-categories",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/hr/document-category",
+		Summary:     "List document categories (HR)",
+		Tags:        []string{"Documents", "HR"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.ListDocumentCategories)
+
+	// List document categories - public alias
+	huma.Register(api, huma.Operation{
+		OperationID: "list-document-categories-public",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/documents/categories",
+		Summary:     "List document categories (all employees)",
+		Tags:        []string{"Documents"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.ListDocumentCategories)
+
+	//Update Document - HR
+	huma.Register(api, huma.Operation{
+		OperationID: "update-document",
+		Method:      http.MethodPut,
+		Path:        "/api/v1/hr/documents/{id}",
+		Summary:     "Update document metadata (HR only)",
+		Tags:        []string{"HR", "Documents"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.UpdateDocument)
 }
 
+// CreateDocument function
 func (h *DocumentHandler) CreateDocument(
 	ctx context.Context,
 	input *struct {
-		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
-		RawBody       multipart.Form
+		Authorization string         `header:"Authorization" required:"true" doc:"Bearer token"`
+		RawBody       multipart.Form `contentType:"multipart/form-data"`
 	},
-) (*struct{ Body models.Document }, error) {
-	// Validate HR access
+) (*struct{ Body docDTO.DocumentResponse }, error) {
+	// 1. AUTHORIZATION: Validate HR access
 	claims, err := authPkg.Authorize(
 		input.Authorization,
 		h.jwtService,
@@ -159,36 +226,33 @@ func (h *DocumentHandler) CreateDocument(
 		return nil, err
 	}
 
-	// Get form values
-	title := ""
-	if titles, ok := input.RawBody.Value["title"]; ok && len(titles) > 0 {
-		title = titles[0]
+	files, ok := input.RawBody.File["file"]
+	if !ok || len(files) == 0 {
+		return nil, huma.Error400BadRequest("File is required (key: file)")
 	}
-	if title == "" {
-		return nil, huma.Error400BadRequest("Title is required")
-	}
+	fileHeader := files[0]
 
 	categoryIDStr := ""
 	if categoryIDs, ok := input.RawBody.Value["category_id"]; ok && len(categoryIDs) > 0 {
 		categoryIDStr = categoryIDs[0]
 	}
-	if categoryIDStr == "" {
-		return nil, huma.Error400BadRequest("Category ID is required")
-	}
-	categoryID, err := uuid.Parse(categoryIDStr)
-	if err != nil {
-		return nil, huma.Error400BadRequest("Invalid category_id format")
+
+	roles := "employee"
+	if r, ok := input.RawBody.Value["roles"]; ok && len(r) > 0 {
+		roles = r[0]
 	}
 
-	// Get file
-	files, ok := input.RawBody.File["file"]
-	if !ok || len(files) == 0 {
-		return nil, huma.Error400BadRequest("File is required")
+	description := ""
+	if d, ok := input.RawBody.Value["description"]; ok && len(d) > 0 {
+		description = strings.TrimSpace(d[0])
 	}
-	fileHeader := files[0]
 
-	if fileHeader.Size > MaxFileSize {
-		return nil, huma.Error400BadRequest("File size exceeds the maximum limit (10 MB)")
+	// Extract title from filename
+	title := strings.TrimSuffix(fileHeader.Filename, filepath.Ext(fileHeader.Filename))
+	title = strings.TrimSpace(title)
+
+	if err := h.service.ValidateCreateRequest(title, categoryIDStr, roles, description); err != nil {
+		return nil, err
 	}
 
 	file, err := fileHeader.Open()
@@ -197,82 +261,110 @@ func (h *DocumentHandler) CreateDocument(
 	}
 	defer file.Close()
 
-	// Validate MIME type
+	// Detect MIME type
 	buffer := make([]byte, 512)
 	_, err = file.Read(buffer)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to read uploaded file", err)
 	}
-	mimeType := http.DetectContentType(buffer)
-	if !AllowedMimeTypes[mimeType] {
-		return nil, huma.Error400BadRequest("Unsupported file type", nil)
+
+	mimeType, err := h.service.DetectAndValidateMimeType(buffer, fileHeader.Filename)
+	if err != nil {
+		return nil, err
 	}
-	// Reset file read pointer
+
+	// Validate file using service
+	if err := h.service.ValidateFile(fileHeader.Filename, fileHeader.Size, mimeType); err != nil {
+		return nil, err
+	}
+
 	_, err = file.Seek(0, 0)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to reset file reader", err)
 	}
 
-	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-	allowedExts := map[string]bool{
-		".pdf":  true,
-		".doc":  true,
-		".docx": true,
-		".png":  true,
-		".jpg":  true,
-		".jpeg": true,
-	}
-	if !allowedExts[ext] {
-		return nil, huma.Error400BadRequest("Unsupported file extension", nil)
-	}
+	filename, path := h.service.GenerateStoragePath(title, fileHeader.Filename)
 
-	filename := uuid.New().String() + ext
-	path := "documents/" + filename
-
-	// Upload file to storage
 	fileURL, err := h.service.UploadFile(ctx, path, file)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to upload file", err)
 	}
 
+	categoryID, err := uuid.Parse(categoryIDStr)
+	if err != nil {
+		return nil, huma.Error400BadRequest("Invalid categoryID")
+	}
+
 	doc := models.Document{
-		Title:      title,
-		CategoryID: categoryID,
-		FilePath:   fileURL,
+		Title:       title,
+		FileName:    filename,
+		Description: description,
+		CategoryID:  categoryID,
+		FilePath:    fileURL,
+		MimeType:    mimeType,
+		FileSize:    fileHeader.Size,
+		Roles:       roles,
+		UploadedBy:  claims.UserID,
 	}
 
 	result, err := h.service.Create(claims.UserID, doc)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("Failed to create document", err)
+		return nil, err
 	}
 
-	return &struct{ Body models.Document }{Body: *result}, nil
-
+	return &struct{ Body docDTO.DocumentResponse }{
+		Body: docDTO.DocumentResponse{
+			ID:          result.ID,
+			Title:       result.Title,
+			Description: result.Description,
+			CategoryID:  result.CategoryID,
+			FileName:    result.FileName,
+			FileSize:    utils.FormatFileSize(result.FileSize),
+			MimeType:    result.MimeType,
+			Roles:       result.Roles,
+			UploadedBy:  result.UploadedBy,
+			CreatedAt:   result.CreatedAt,
+		},
+	}, nil
 }
 
+// ListDocuments function
 func (h *DocumentHandler) ListDocuments(
 	ctx context.Context,
 	input *struct {
 		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 	},
-) (*struct{ Body []models.Document }, error) {
+) (*struct{ Body []docDTO.DocumentResponse }, error) {
 	// Validate login
-	_, err := authPkg.Authorize(
+	claims, err := authPkg.Authorize(
 		input.Authorization,
 		h.jwtService,
 		h.employeeRepo,
-		authPkg.AuthOptions{},
+		authPkg.AuthOptions{
+			RequireActive: true,
+		},
 	)
 	if err != nil {
 		return nil, err
 	}
-	docs, err := h.service.List()
+	employee, err := h.employeeRepo.FindByID(claims.UserID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Employee not found")
+	}
+
+	userRole := "employee" // default
+	if employee.Role != nil {
+		userRole = employee.Role.Name
+	}
+
+	docs, err := h.service.List(userRole, claims.UserID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to list documents", err)
 	}
-	return &struct{ Body []models.Document }{Body: docs}, nil
+	return &struct{ Body []docDTO.DocumentResponse }{Body: docs}, nil
 }
 
+// ReadDocument function
 func (h *DocumentHandler) ReadDocument(
 	ctx context.Context,
 	input *struct {
@@ -313,6 +405,7 @@ func (h *DocumentHandler) ReadDocument(
 	}, nil
 }
 
+// CreateDocumentCategory function
 func (h *DocumentHandler) CreateDocumentCategory(
 	ctx context.Context,
 	input *struct {
@@ -346,10 +439,44 @@ func (h *DocumentHandler) CreateDocumentCategory(
 	return &struct{ Body models.DocumentCategory }{Body: *result}, nil
 }
 
-func (h *DocumentHandler) serveDocumentFile(docID uuid.UUID, inline bool) (*huma.StreamResponse, error) {
+// ListDocumentCategories lists all document categories
+func (h *DocumentHandler) ListDocumentCategories(
+	ctx context.Context,
+	input *struct {
+		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+	},
+) (*struct {
+	Body struct {
+		Data []models.DocumentCategory `json:"data"`
+	}
+}, error) {
+	_, err := authPkg.Authorize(input.Authorization, h.jwtService, h.employeeRepo, authPkg.AuthOptions{RequireActive: true})
+	if err != nil {
+		return nil, err
+	}
+	cats, err := h.categoryService.List()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to list categories", err)
+	}
+	return &struct {
+		Body struct {
+			Data []models.DocumentCategory `json:"data"`
+		}
+	}{Body: struct {
+		Data []models.DocumentCategory `json:"data"`
+	}{Data: cats}}, nil
+}
+
+// serveDocumentFile is a helper function to serve document files for both view and download endpoints
+func (h *DocumentHandler) serveDocumentFile(docID uuid.UUID, role string, inline bool) (*huma.StreamResponse, error) {
 	doc, err := h.service.FindByID(docID)
 	if err != nil {
 		return nil, huma.Error404NotFound("Document not found")
+	}
+
+	// Check if user has permission to access the document using service
+	if !h.service.HasPermission(doc.Roles, role) {
+		return nil, huma.Error403Forbidden("You do not have permission to access this document")
 	}
 
 	disposition := "attachment"
@@ -360,15 +487,7 @@ func (h *DocumentHandler) serveDocumentFile(docID uuid.UUID, inline bool) (*huma
 
 	// Detect content type from file extension
 	ext := strings.ToLower(filepath.Ext(doc.FilePath))
-	contentTypeMap := map[string]string{
-		".pdf":  "application/pdf",
-		".png":  "image/png",
-		".jpg":  "image/jpeg",
-		".jpeg": "image/jpeg",
-		".doc":  "application/msword",
-		".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-	}
-	contentType := contentTypeMap[ext]
+	contentType := ContentTypeMap[ext]
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
@@ -391,6 +510,7 @@ func (h *DocumentHandler) serveDocumentFile(docID uuid.UUID, inline bool) (*huma
 	}, nil
 }
 
+// ViewDocument function
 func (h *DocumentHandler) ViewDocument(
 	ctx context.Context,
 	input *struct {
@@ -409,9 +529,24 @@ func (h *DocumentHandler) ViewDocument(
 	if err != nil {
 		return nil, err
 	}
+
+	employee, err := h.employeeRepo.FindByID(claims.UserID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Employee not found")
+	}
+
+	userRole := "employee" // default
+	if employee.Role != nil {
+		userRole = employee.Role.Name
+	}
+
+	resp, err := h.serveDocumentFile(input.ID, userRole, true)
+	if err != nil {
+		return nil, err
+	}
 	// Auto mark as read
 	_ = h.service.Read(input.ID, claims.UserID)
-	return h.serveDocumentFile(input.ID, true)
+	return resp, nil
 }
 
 func (h *DocumentHandler) DownloadDocument(
@@ -421,7 +556,7 @@ func (h *DocumentHandler) DownloadDocument(
 		ID            uuid.UUID `path:"id" required:"true"`
 	},
 ) (*huma.StreamResponse, error) {
-	_, err := authPkg.Authorize(
+	claims, err := authPkg.Authorize(
 		input.Authorization,
 		h.jwtService,
 		h.employeeRepo,
@@ -433,5 +568,86 @@ func (h *DocumentHandler) DownloadDocument(
 		return nil, err
 	}
 
-	return h.serveDocumentFile(input.ID, false)
+	employee, err := h.employeeRepo.FindByID(claims.UserID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Employee not found")
+	}
+
+	userRole := "employee" // default
+	if employee.Role != nil {
+		userRole = employee.Role.Name
+	}
+
+	return h.serveDocumentFile(input.ID, userRole, false)
+}
+
+func (h *DocumentHandler) UpdateDocument(
+	ctx context.Context,
+	input *struct {
+		Authorization string    `header:"Authorization" required:"true"`
+		ID            uuid.UUID `path:"id" required:"true"`
+		Body          struct {
+			Title       string     `json:"title,omitempty"`
+			Description string     `json:"description,omitempty"`
+			CategoryID  *uuid.UUID `json:"category_id,omitempty"`
+			Roles       string     `json:"roles,omitempty"`
+		}
+	},
+) (*struct{ Body docDTO.DocumentResponse }, error) {
+
+	// HR/Admin only
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			Roles: []string{"hr", "admin"},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	doc, err := h.service.FindByID(input.ID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Document not found")
+	}
+
+	if input.Body.Title != "" {
+		doc.Title = input.Body.Title
+	}
+
+	if input.Body.Description != "" {
+		doc.Description = input.Body.Description
+	}
+
+	if input.Body.CategoryID != nil {
+		doc.CategoryID = *input.Body.CategoryID
+	}
+
+	if input.Body.Roles != "" {
+		doc.Roles = input.Body.Roles
+	}
+
+	updated, err := h.service.Update(*doc)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to update document", err)
+	}
+
+	return &struct{ Body docDTO.DocumentResponse }{
+		Body: docDTO.DocumentResponse{
+			ID:          updated.ID,
+			Title:       updated.Title,
+			Description: updated.Description,
+			CategoryID:  updated.CategoryID,
+			FileName:    updated.FileName,
+			Roles:       updated.Roles,
+			FileSize:    utils.FormatFileSize(updated.FileSize),
+			MimeType:    updated.MimeType,
+			UploadedBy:  updated.UploadedBy,
+			IsRead:      false,
+			CreatedAt:   updated.CreatedAt,
+			UpdatedAt:   updated.UpdatedAt,
+		},
+	}, nil
 }

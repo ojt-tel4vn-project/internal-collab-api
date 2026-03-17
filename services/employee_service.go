@@ -1,12 +1,18 @@
 package services
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
+	"io"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/ojt-tel4vn-project/internal-collab-api/dtos/employee"
+	"github.com/ojt-tel4vn-project/internal-collab-api/internal/storage"
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/email"
@@ -21,23 +27,33 @@ type EmployeeService interface {
 	CreateEmployee(req *employee.CreateEmployeeRequest) (*employee.CreateEmployeeResponse, error)
 	GetAllEmployees() (*employee.ListEmployeesResponse, error)
 	GetEmployeeByID(id uuid.UUID) (*employee.GetEmployeeResponse, error)
+	GetProfile(id uuid.UUID) (*employee.GetEmployeeResponse, error)
 	UpdateEmployee(id uuid.UUID, req *employee.UpdateEmployeeRequest) (*employee.UpdateEmployeeResponse, error)
+	UpdateProfile(id uuid.UUID, req *employee.UpdateProfileRequest) (*employee.UpdateProfileResponse, error)
+	UploadAvatar(ctx context.Context, employeeID uuid.UUID, file io.Reader, filename string) (string, error)
 	DeleteEmployee(id uuid.UUID) error
 	GetTodayBirthdays() (*employee.ListBirthdayResponse, error)
+	GetAllBirthdays() (*employee.ListAllBirthdaysResponse, error)
 	GetSubordinates(managerID uuid.UUID) (*employee.ListSubordinatesResponse, error)
+	GetBirthdayConfig() (*employee.GetBirthdayConfigResponse, error)
+	UpdateBirthdayConfig(req *employee.UpdateBirthdayConfigRequest) (*employee.UpdateBirthdayConfigResponse, error)
 }
 
 type employeeServiceImpl struct {
 	repo         repository.EmployeeRepository
 	password     crypto.PasswordService
 	emailService email.EmailService
+	appConfig    repository.AppConfigRepository
+	storage      *storage.SupabaseStorage
 }
 
-func NewEmployeeService(repo repository.EmployeeRepository, password crypto.PasswordService, emailService email.EmailService) EmployeeService {
+func NewEmployeeService(repo repository.EmployeeRepository, password crypto.PasswordService, emailService email.EmailService, appConfig repository.AppConfigRepository, stor *storage.SupabaseStorage) EmployeeService {
 	return &employeeServiceImpl{
 		repo:         repo,
 		password:     password,
 		emailService: emailService,
+		appConfig:    appConfig,
+		storage:      stor,
 	}
 }
 
@@ -93,6 +109,19 @@ func (s *employeeServiceImpl) CreateEmployee(req *employee.CreateEmployeeRequest
 		return nil, response.InternalServerError("Failed to generate employee code")
 	}
 
+	// If no role is specified, assign default "employee" role
+	roleID := req.RoleID
+	if roleID == nil {
+		// Find default "employee" role
+		defaultRole, err := s.repo.FindRoleByName("employee")
+		if err != nil {
+			logger.Warn("CreateEmployee: default 'employee' role not found, proceeding without role", zap.Error(err))
+		} else {
+			roleID = &defaultRole.ID
+			logger.Info("CreateEmployee: assigned default 'employee' role", zap.String("role_id", defaultRole.ID.String()))
+		}
+	}
+
 	// Create employee model
 	newEmployee := models.Employee{
 		Email:        req.Email,
@@ -106,6 +135,7 @@ func (s *employeeServiceImpl) CreateEmployee(req *employee.CreateEmployeeRequest
 		DepartmentID: req.DepartmentID,
 		Position:     req.Position,
 		ManagerID:    req.ManagerID,
+		RoleID:       roleID,
 		JoinDate:     joinDate,
 		Status:       models.StatusPending, // Pending until first-time setup
 	}
@@ -173,9 +203,20 @@ func (s *employeeServiceImpl) GetAllEmployees() (*employee.ListEmployeesResponse
 	// Convert to summary
 	summaries := make([]employee.EmployeeSummary, len(employees))
 	for i, emp := range employees {
-		departmentName := ""
+		var deptBrief *employee.DepartmentBrief
 		if emp.Department != nil {
-			departmentName = emp.Department.Name
+			deptBrief = &employee.DepartmentBrief{
+				ID:   emp.Department.ID,
+				Name: emp.Department.Name,
+			}
+		}
+
+		var roleBrief *employee.RoleBrief
+		if emp.Role != nil {
+			roleBrief = &employee.RoleBrief{
+				ID:   emp.Role.ID,
+				Name: emp.Role.Name,
+			}
 		}
 
 		summaries[i] = employee.EmployeeSummary{
@@ -184,7 +225,9 @@ func (s *employeeServiceImpl) GetAllEmployees() (*employee.ListEmployeesResponse
 			FullName:     emp.FullName,
 			EmployeeCode: emp.EmployeeCode,
 			Position:     emp.Position,
-			Department:   departmentName,
+			Department:   deptBrief,
+			Role:         roleBrief,
+			AvatarUrl:    emp.AvatarUrl,
 			Status:       string(emp.Status),
 		}
 	}
@@ -213,9 +256,11 @@ func (s *employeeServiceImpl) GetEmployeeByID(id uuid.UUID) (*employee.GetEmploy
 		DateOfBirth:  emp.DateOfBirth,
 		Phone:        emp.Phone,
 		Address:      emp.Address,
+		AvatarUrl:    emp.AvatarUrl,
 		DepartmentID: emp.DepartmentID,
 		Position:     emp.Position,
 		ManagerID:    emp.ManagerID,
+		RoleID:       emp.RoleID,
 		JoinDate:     emp.JoinDate,
 		LeaveDate:    emp.LeaveDate,
 		Status:       string(emp.Status),
@@ -246,7 +291,20 @@ func (s *employeeServiceImpl) GetEmployeeByID(id uuid.UUID) (*employee.GetEmploy
 		}
 	}
 
+	// Add role info if exists
+	if emp.Role != nil {
+		resp.Role = &employee.RoleBrief{
+			ID:   emp.Role.ID,
+			Name: emp.Role.Name,
+		}
+	}
+
 	return resp, nil
+}
+
+func (s *employeeServiceImpl) GetProfile(id uuid.UUID) (*employee.GetEmployeeResponse, error) {
+	// Re-using GetEmployeeByID
+	return s.GetEmployeeByID(id)
 }
 
 func (s *employeeServiceImpl) UpdateEmployee(id uuid.UUID, req *employee.UpdateEmployeeRequest) (*employee.UpdateEmployeeResponse, error) {
@@ -288,6 +346,9 @@ func (s *employeeServiceImpl) UpdateEmployee(id uuid.UUID, req *employee.UpdateE
 	if req.Status != nil {
 		emp.Status = models.Status(*req.Status)
 	}
+	if req.RoleID != nil {
+		emp.RoleID = req.RoleID
+	}
 
 	// Save updates
 	if err := s.repo.Update(emp); err != nil {
@@ -317,6 +378,68 @@ func (s *employeeServiceImpl) UpdateEmployee(id uuid.UUID, req *employee.UpdateE
 			Status:       string(emp.Status),
 		},
 	}, nil
+}
+
+func (s *employeeServiceImpl) UpdateProfile(id uuid.UUID, req *employee.UpdateProfileRequest) (*employee.UpdateProfileResponse, error) {
+	emp, err := s.repo.FindByID(id)
+	if err != nil {
+		logger.Warn("UpdateProfile failed: employee not found", zap.String("id", id.String()))
+		return nil, response.NotFound("Employee not found")
+	}
+
+	if req.Phone != nil {
+		emp.Phone = *req.Phone
+	}
+	if req.Address != nil {
+		emp.Address = *req.Address
+	}
+	if req.AvatarUrl != nil {
+		emp.AvatarUrl = *req.AvatarUrl
+	}
+
+	if err := s.repo.Update(emp); err != nil {
+		logger.Error("UpdateProfile failed: database update error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to update profile")
+	}
+
+	logger.Info("Profile updated successfully", zap.String("employee_id", id.String()))
+
+	return &employee.UpdateProfileResponse{
+		Message: "Profile updated successfully",
+	}, nil
+}
+
+// UploadAvatar uploads an avatar image for the employee and stores the URL
+func (s *employeeServiceImpl) UploadAvatar(ctx context.Context, employeeID uuid.UUID, file io.Reader, filename string) (string, error) {
+	emp, err := s.repo.FindByID(employeeID)
+	if err != nil {
+		return "", response.NotFound("Employee not found")
+	}
+
+	// Validate extension
+	ext := strings.ToLower(filepath.Ext(filename))
+	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
+	if !allowed[ext] {
+		return "", response.BadRequest("Only image files are allowed (jpg, jpeg, png, gif, webp)")
+	}
+
+	// Upload to Supabase Storage under avatars/
+	path := "avatars/" + employeeID.String() + ext
+	publicURL, err := s.storage.UploadFile(ctx, path, file)
+	if err != nil {
+		logger.Error("UploadAvatar: storage upload failed", zap.Error(err))
+		return "", response.InternalServerError("Failed to upload avatar")
+	}
+
+	// Update avatar_url in DB
+	emp.AvatarUrl = publicURL
+	if err := s.repo.Update(emp); err != nil {
+		logger.Error("UploadAvatar: DB update failed", zap.Error(err))
+		return "", response.InternalServerError("Failed to save avatar URL")
+	}
+
+	logger.Info("Avatar uploaded", zap.String("employee_id", employeeID.String()), zap.String("url", publicURL))
+	return publicURL, nil
 }
 
 func (s *employeeServiceImpl) DeleteEmployee(id uuid.UUID) error {
@@ -375,6 +498,35 @@ func (s *employeeServiceImpl) GetTodayBirthdays() (*employee.ListBirthdayRespons
 	}, nil
 }
 
+func (s *employeeServiceImpl) GetAllBirthdays() (*employee.ListAllBirthdaysResponse, error) {
+	employees, err := s.repo.FindAllBirthdays()
+	if err != nil {
+		logger.Error("GetAllBirthdays failed", zap.Error(err))
+		return nil, response.InternalServerError("Failed to fetch birthdays")
+	}
+
+	summaries := make([]employee.BirthdaySummary, len(employees))
+	for i, emp := range employees {
+		departmentName := ""
+		if emp.Department != nil {
+			departmentName = emp.Department.Name
+		}
+		summaries[i] = employee.BirthdaySummary{
+			ID:         emp.ID,
+			FullName:   emp.FullName,
+			Email:      emp.Email,
+			Department: departmentName,
+			Position:   emp.Position,
+			BirthDate:  emp.DateOfBirth.Format("2006-01-02"),
+		}
+	}
+
+	return &employee.ListAllBirthdaysResponse{
+		Employees: summaries,
+		Total:     len(summaries),
+	}, nil
+}
+
 func (s *employeeServiceImpl) GetSubordinates(managerID uuid.UUID) (*employee.ListSubordinatesResponse, error) {
 	// Find manager info first
 	manager, err := s.repo.FindByID(managerID)
@@ -415,5 +567,52 @@ func (s *employeeServiceImpl) GetSubordinates(managerID uuid.UUID) (*employee.Li
 		},
 		Subordinates: summaryList,
 		Total:        len(summaryList),
+	}, nil
+}
+
+const birthdayConfigKey = "birthday_config"
+
+var defaultBirthdayConfig = employee.BirthdayConfig{
+	Enabled:          true,
+	NotificationTime: "09:00",
+	Channels:         []string{"in_app", "email"},
+}
+
+func (s *employeeServiceImpl) GetBirthdayConfig() (*employee.GetBirthdayConfigResponse, error) {
+	raw, err := s.appConfig.Get(birthdayConfigKey)
+	if err != nil {
+		// Key not found yet — return default without error
+		return &employee.GetBirthdayConfigResponse{Data: defaultBirthdayConfig}, nil
+	}
+
+	var cfg employee.BirthdayConfig
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		logger.Warn("Failed to parse birthday config from DB, using default", zap.Error(err))
+		return &employee.GetBirthdayConfigResponse{Data: defaultBirthdayConfig}, nil
+	}
+	return &employee.GetBirthdayConfigResponse{Data: cfg}, nil
+}
+
+func (s *employeeServiceImpl) UpdateBirthdayConfig(req *employee.UpdateBirthdayConfigRequest) (*employee.UpdateBirthdayConfigResponse, error) {
+	cfg := employee.BirthdayConfig{
+		Enabled:          req.Enabled,
+		NotificationTime: req.NotificationTime,
+		Channels:         req.Channels,
+	}
+
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		logger.Error("UpdateBirthdayConfig failed: marshal error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to save birthday config")
+	}
+
+	if err := s.appConfig.Set(birthdayConfigKey, string(raw)); err != nil {
+		logger.Error("UpdateBirthdayConfig failed: DB save error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to save birthday config")
+	}
+
+	return &employee.UpdateBirthdayConfigResponse{
+		Message: "Birthday configuration updated successfully",
+		Data:    cfg,
 	}, nil
 }

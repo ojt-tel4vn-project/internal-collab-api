@@ -4,17 +4,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	models "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"gorm.io/gorm"
 )
 
 type DocumentRepository interface {
 	Create(doc *models.Document) error
-	FindAll() ([]models.Document, error)
+	FindByRole(role string) ([]models.Document, error)
 	MarkAsRead(documentID, employeeID uuid.UUID) error
-	GetReaders(docID uuid.UUID) ([]uuid.UUID, error)
+	GetReadDocumentIDs(employeeID uuid.UUID) ([]uuid.UUID, error) // Added for mapping marks
 	Exists(docID uuid.UUID) (bool, error)
 	FindByID(docID uuid.UUID) (*models.Document, error)
+	ExistsByTitle(title string) (bool, error)
+	Update(doc *models.Document) error
 }
 
 type documentRepositoryImpl struct {
@@ -29,9 +31,17 @@ func (r *documentRepositoryImpl) Create(doc *models.Document) error {
 	return r.db.Create(doc).Error
 }
 
-func (r *documentRepositoryImpl) FindAll() ([]models.Document, error) {
+func (r *documentRepositoryImpl) FindByRole(role string) ([]models.Document, error) {
 	var documents []models.Document
-	return documents, r.db.Order("created_at desc").Find(&documents).Error
+	query := r.db.Order("created_at desc")
+
+	// 'admin' can see everything. Others only see if their role is in the list
+	if role != "admin" {
+		query = query.Where("roles = 'all' OR roles LIKE ?", "%"+role+"%")
+	}
+
+	err := query.Find(&documents).Error
+	return documents, err
 }
 
 func (r *documentRepositoryImpl) MarkAsRead(documentID, employeeID uuid.UUID) error {
@@ -43,12 +53,12 @@ func (r *documentRepositoryImpl) MarkAsRead(documentID, employeeID uuid.UUID) er
 	return r.db.FirstOrCreate(&read).Error
 }
 
-func (r *documentRepositoryImpl) GetReaders(docID uuid.UUID) ([]uuid.UUID, error) {
-	var readers []uuid.UUID
+func (r *documentRepositoryImpl) GetReadDocumentIDs(employeeID uuid.UUID) ([]uuid.UUID, error) {
+	var readIDs []uuid.UUID
 	err := r.db.Model(&models.DocumentRead{}).
-		Where("document_id = ?", docID).
-		Pluck("employee_id", &readers).Error
-	return readers, err
+		Where("employee_id = ?", employeeID).
+		Pluck("document_id", &readIDs).Error
+	return readIDs, err
 }
 
 func (r *documentRepositoryImpl) Exists(docID uuid.UUID) (bool, error) {
@@ -66,4 +76,16 @@ func (r *documentRepositoryImpl) FindByID(docID uuid.UUID) (*models.Document, er
 		return nil, err
 	}
 	return &document, nil
+}
+
+func (r *documentRepositoryImpl) Update(doc *models.Document) error {
+	return r.db.Save(doc).Error
+}
+
+func (r *documentRepositoryImpl) ExistsByTitle(title string) (bool, error) {
+	var count int64
+	err := r.db.Model(&models.Document{}).
+		Where("title = ?", title).
+		Count(&count).Error
+	return count > 0, err
 }

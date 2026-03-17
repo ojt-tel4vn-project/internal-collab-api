@@ -41,6 +41,7 @@ func (s *SupabaseStorage) UploadFile(ctx context.Context, path string, file io.R
 
 	req.Header.Set("Authorization", "Bearer "+s.apiKey)
 	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("x-upsert", "true") // overwrite existing file instead of 409 Conflict
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

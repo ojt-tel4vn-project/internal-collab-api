@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -10,13 +11,6 @@ type Config struct {
 	Server   ServerConfig
 	JWT      JWTConfig
 	Email    EmailConfig
-	Supabase SupabaseConfig
-}
-
-type SupabaseConfig struct {
-	URL    string
-	Bucket string
-	APIKey string
 }
 
 type DatabaseConfig struct {
@@ -29,7 +23,8 @@ type DatabaseConfig struct {
 }
 
 type ServerConfig struct {
-	Port string
+	Port        string
+	FrontendURL string
 }
 
 type JWTConfig struct {
@@ -54,21 +49,22 @@ func Load() *Config {
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
 		Server: ServerConfig{
-			Port: getEnv("SERVER_PORT", "8080"),
+			Port:        getEnv("SERVER_PORT", "8080"),
+			FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
 		},
 		JWT: JWTConfig{
 			Secret:          getEnv("JWT_SECRET", "your-secret-key-change-this-in-production"),
 			ExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
 		},
 		Email: EmailConfig{
-			BrevoAPIKey: getEnv("BREVO_API_KEY", ""),
-			FromEmail:   getEnv("EMAIL_FROM", "noreply@company.com"),
+			BrevoAPIKey: strings.TrimSpace(getEnv("BREVO_API_KEY", "")),
+			FromEmail:   strings.TrimSpace(getEnv("EMAIL_FROM", "noreply@company.com")),
 			FromName:    getEnv("EMAIL_FROM_NAME", "Internal Collaboration System"),
 		},
 		Supabase: SupabaseConfig{
-			URL:    getEnv("SUPABASE_URL", ""),
-			Bucket: getEnv("SUPABASE_BUCKET", ""),
-			APIKey: getEnv("SUPABASE_API_KEY", ""),
+			URL:    strings.TrimSpace(getEnv("SUPABASE_URL", "")),
+			Bucket: strings.TrimSpace(getEnv("SUPABASE_BUCKET", "")),
+			APIKey: strings.TrimSpace(getEnv("SUPABASE_API_KEY", "")),
 		},
 	}
 }

@@ -10,7 +10,7 @@ type Status string
 
 const (
 	StatusActive   Status = "active"
-	StatusInActive Status = "inactive"
+	StatusOffBoard Status = "offboard"
 	StatusPending  Status = "pending"
 )
 
@@ -50,5 +50,6 @@ type Employee struct {
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
 	// Relations
-	Roles []Role `gorm:"many2many:employee_roles;" json:"roles,omitempty"`
+	RoleID *uuid.UUID `gorm:"type:uuid" json:"role_id"`
+	Role   *Role      `gorm:"foreignKey:RoleID" json:"role,omitempty"`
 }

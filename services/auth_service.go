@@ -20,6 +20,7 @@ type AuthService interface {
 	ChangePassword(employeeID uuid.UUID, req *auth.ChangePasswordRequest) (*auth.ChangePasswordResponse, error)
 	FirstTimeSetup(email string, req *auth.FirstTimeSetupRequest) (*auth.FirstTimeSetupResponse, error)
 	ForgotPassword(req *auth.ForgotPasswordRequest) (*auth.ForgotPasswordResponse, error)
+	ResetPassword(req *auth.ResetPasswordRequest) (*auth.ResetPasswordResponse, error)
 }
 
 type authServiceImpl struct {
@@ -28,6 +29,7 @@ type authServiceImpl struct {
 	jwtService       crypto.JWTService
 	password         crypto.PasswordService
 	emailService     email.EmailService
+	frontendURL      string
 }
 
 func NewAuthService(
@@ -36,6 +38,7 @@ func NewAuthService(
 	jwtService crypto.JWTService,
 	password crypto.PasswordService,
 	emailService email.EmailService,
+	frontendURL string,
 ) AuthService {
 	return &authServiceImpl{
 		employeeRepo:     employeeRepo,
@@ -43,6 +46,7 @@ func NewAuthService(
 		jwtService:       jwtService,
 		password:         password,
 		emailService:     emailService,
+		frontendURL:      frontendURL,
 	}
 }
 
@@ -85,6 +89,11 @@ func (s *authServiceImpl) Login(req *auth.LoginRequest) (*auth.LoginResponse, er
 		return nil, response.InternalServerError("Failed to save refresh token")
 	}
 
+	var roles []string
+	if employee.Role != nil {
+		roles = []string{employee.Role.Name}
+	}
+
 	return &auth.LoginResponse{
 		AccessToken:           token,
 		RefreshToken:          refreshTokenString,
@@ -96,12 +105,14 @@ func (s *authServiceImpl) Login(req *auth.LoginRequest) (*auth.LoginResponse, er
 			Name         string    `json:"name"`
 			EmployeeCode string    `json:"employee_code"`
 			Status       string    `json:"status"`
+			Roles        []string  `json:"roles"`
 		}{
 			ID:           employee.ID,
 			Email:        employee.Email,
 			Name:         employee.FullName,
 			EmployeeCode: employee.EmployeeCode,
 			Status:       string(employee.Status),
+			Roles:        roles,
 		},
 	}, nil
 }
@@ -272,7 +283,7 @@ func (s *authServiceImpl) ForgotPassword(req *auth.ForgotPasswordRequest) (*auth
 	}
 
 	// Send email
-	resetLink := "http://localhost:3000/reset-password?token=" + token
+	resetLink := s.frontendURL + "/reset-password?token=" + token
 	if s.emailService != nil {
 		err := s.emailService.SendPasswordResetEmail(employee.Email, employee.FullName, resetLink)
 		if err != nil {
@@ -284,5 +295,39 @@ func (s *authServiceImpl) ForgotPassword(req *auth.ForgotPasswordRequest) (*auth
 
 	return &auth.ForgotPasswordResponse{
 		Message: "If your email is registered, you will receive a password reset link",
+	}, nil
+}
+
+func (s *authServiceImpl) ResetPassword(req *auth.ResetPasswordRequest) (*auth.ResetPasswordResponse, error) {
+	employee, err := s.employeeRepo.FindByPasswordResetToken(req.Token)
+	if err != nil {
+		logger.Warn("ResetPassword failed: invalid token", zap.String("token", req.Token))
+		return nil, response.BadRequest("Invalid or expired reset token")
+	}
+
+	if employee.PasswordResetExpiresAt == nil || employee.PasswordResetExpiresAt.Before(time.Now()) {
+		logger.Warn("ResetPassword failed: token expired")
+		return nil, response.BadRequest("Invalid or expired reset token")
+	}
+
+	hashedPassword, err := s.password.HashPassword(req.NewPassword)
+	if err != nil {
+		logger.Error("ResetPassword failed: password hashing error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to reset password")
+	}
+
+	employee.PasswordHash = hashedPassword
+	employee.PasswordResetToken = nil
+	employee.PasswordResetExpiresAt = nil
+
+	if err := s.employeeRepo.Update(employee); err != nil {
+		logger.Error("ResetPassword failed: database update error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to reset password")
+	}
+
+	logger.Info("Password reset successfully", zap.String("email", employee.Email))
+
+	return &auth.ResetPasswordResponse{
+		Message: "Password has been reset successfully",
 	}, nil
 }

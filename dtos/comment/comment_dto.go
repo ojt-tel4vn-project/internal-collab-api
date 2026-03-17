@@ -1,0 +1,54 @@
+package comment
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// CreateCommentRequest payload for creating a comment on an attendance record
+type CreateCommentRequest struct {
+	Content  string     `json:"content" required:"true" doc:"Comment text"`
+	ParentID *uuid.UUID `json:"parent_id,omitempty" doc:"Parent comment ID for replies"`
+}
+
+// CommentAuthor slim author info embedded in responses
+type CommentAuthor struct {
+	ID        uuid.UUID `json:"id"`
+	FullName  string    `json:"full_name"`
+	AvatarUrl string    `json:"avatar_url"`
+}
+
+// CommentItem is a single comment in a list
+type CommentItem struct {
+	ID           uuid.UUID     `json:"id"`
+	AttendanceID uuid.UUID     `json:"attendance_id"`
+	Author       CommentAuthor `json:"author"`
+	Content      string        `json:"content"`
+	IsRead       bool          `json:"is_read"`
+	ParentID     *uuid.UUID    `json:"parent_id,omitempty"`
+	CreatedAt    time.Time     `json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at"`
+}
+
+// ListCommentsResponse response for listing comments of an attendance record
+type ListCommentsResponse struct {
+	Comments []CommentItem `json:"comments"`
+	Total    int           `json:"total"`
+}
+
+// CreateCommentResponse response after creating a comment
+type CreateCommentResponse struct {
+	Message string      `json:"message"`
+	Comment CommentItem `json:"comment"`
+}
+
+// DeleteCommentResponse response after deleting a comment
+type DeleteCommentResponse struct {
+	Message string `json:"message"`
+}
+
+// MarkReadResponse response after marking a comment as read
+type MarkReadResponse struct {
+	Message string `json:"message"`
+}

@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/logger"
 	"github.com/sendinblue/APIv3-go-library/v2/lib"
@@ -27,13 +28,22 @@ type brevoEmailService struct {
 // NewBrevoEmailService creates a new Brevo email service
 func NewBrevoEmailService(apiKey, fromEmail, fromName string) EmailService {
 	cfg := lib.NewConfiguration()
+	// Set API key in configuration
 	cfg.AddDefaultHeader("api-key", apiKey)
 
 	client := lib.NewAPIClient(cfg)
 
+	// Debug logging (masking most of the key)
+	keyLen := len(apiKey)
+	prefix := ""
+	if keyLen > 5 {
+		prefix = apiKey[:5]
+	}
 	logger.Info("Brevo email service initialized",
 		zap.String("from_email", fromEmail),
 		zap.String("from_name", fromName),
+		zap.Int("api_key_len", keyLen),
+		zap.String("api_key_prefix", prefix),
 	)
 
 	return &brevoEmailService{
@@ -334,7 +344,14 @@ Your Colleagues
 
 // sendEmail is the core method to send email via Brevo
 func (s *brevoEmailService) sendEmail(to, toName, subject, htmlContent, textContent string) error {
-	ctx := context.Background()
+	// Create a fresh client for each request to avoid concurrency issues
+	cfg := lib.NewConfiguration()
+	cfg.AddDefaultHeader("api-key", s.apiKey)
+	client := lib.NewAPIClient(cfg)
+
+	// Use context with timeout to prevent hanging
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	sendSmtpEmail := lib.SendSmtpEmail{
 		Sender: &lib.SendSmtpEmailSender{
@@ -352,7 +369,7 @@ func (s *brevoEmailService) sendEmail(to, toName, subject, htmlContent, textCont
 		TextContent: textContent,
 	}
 
-	result, resp, err := s.client.TransactionalEmailsApi.SendTransacEmail(ctx, sendSmtpEmail)
+	result, resp, err := client.TransactionalEmailsApi.SendTransacEmail(ctx, sendSmtpEmail)
 	if err != nil {
 		logger.Error("Failed to send email via Brevo",
 			zap.Error(err),

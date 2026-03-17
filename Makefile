@@ -25,10 +25,22 @@ build:
 	go build -o tmp/main.exe ./cmd/main.go
 	@echo "✅ Build complete: tmp/main.exe"
 
-# Run tests
+# Run ALL tests (no DB needed)
 test:
-	@echo "Running tests..."
-	go test -v ./...
+	@echo "Running all tests..."
+	go test -v -count=1 ./test/...
+
+# Run tests with coverage report
+test-cover:
+	@echo "Running tests with coverage..."
+	go test -v -count=1 -coverprofile=coverage.out ./test/...
+	go tool cover -func=coverage.out
+	@echo "✅ Coverage report: coverage.out (run 'go tool cover -html=coverage.out' to view in browser)"
+
+# Run a specific service's tests (e.g. make test-pkg PKG=auth)
+test-pkg:
+	@echo "Running tests for $(PKG)..."
+	go test -v -run "$(PKG)" ./test/...
 
 # Seed database
 seed:

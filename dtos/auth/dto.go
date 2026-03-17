@@ -19,6 +19,7 @@ type LoginResponse struct {
 		Name         string    `json:"name"`
 		EmployeeCode string    `json:"employee_code"`
 		Status       string    `json:"status"`
+		Roles        []string  `json:"roles"`
 	} `json:"user"`
 }
 
@@ -59,5 +60,14 @@ type ForgotPasswordRequest struct {
 }
 
 type ForgotPasswordResponse struct {
+	Message string `json:"message"`
+}
+
+type ResetPasswordRequest struct {
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
+}
+
+type ResetPasswordResponse struct {
 	Message string `json:"message"`
 }

@@ -69,7 +69,7 @@ DELETE /api/v1/hr/employees/{id}
 
 - **Framework**: Go 1.21+
 - **API**: Huma v2 (OpenAPI 3.1)
-- **Router**: Chi v5
+- **Router**: Gin v1
 - **Database**: PostgreSQL
 - **ORM**: GORM
 - **Auth**: JWT (golang-jwt/jwt)
@@ -256,18 +256,21 @@ EMAIL_FROM_NAME=Internal Collaboration System
 - [x] Password management
 - [x] Email service (Brevo integration)
 
-### **Phase 2: Enhancements** (TODO)
-- [ ] Token refresh endpoint
-- [ ] Audit logging
-- [ ] Rate limiting
+### **Phase 2: Enhancements**
+- [x] Token refresh endpoint
+- [x] Audit logging
+- [x] Rate limiting
+- [x] Async Email Queue (Go Channels) ⚡
+- [x] Email templates for more events
 - [ ] Profile picture upload
-- [ ] Email templates for more events
 
-### **Phase 3: Advanced Features** (TODO)
+### **Phase 3: Advanced Features**
+- [x] Server-Sent Events (SSE) Realtime Notification System 🔔
+- [x] Leave Management Quotas & Workflow
+- [x] Sticker System & Leaderboard
 - [ ] Multi-factor authentication (MFA)
 - [ ] SSO integration
 - [ ] Advanced reporting
-- [ ] Notification system
 
 ## 🤝 Contributing
 
@@ -289,4 +292,4 @@ This project is licensed under the MIT License.
 
 - Huma v2 for excellent OpenAPI support
 - GORM for powerful ORM
-- Chi for lightweight routing
+- Gin for fast and resilient web framework

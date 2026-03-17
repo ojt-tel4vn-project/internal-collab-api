@@ -18,6 +18,11 @@ func SetupRoutes(
 	employeeRepo repository.EmployeeRepository,
 	documentService services.DocumentService,
 	categoryService services.DocumentCategoryService,
+	leaveService services.LeaveService,
+	attendanceService services.AttendanceService,
+	stickerService services.StickerService,
+	commentService services.CommentService,
+	departmentService services.DepartmentService,
 ) {
 	// Auth Routes (with JWT service)
 	authHandler := handlers.NewAuthHandler(authService, jwtService)
@@ -38,4 +43,24 @@ func SetupRoutes(
 	// Notification Routes
 	notificationHandler := handlers.NewNotificationHandler(notificationService, jwtService)
 	notificationHandler.RegisterRoutes(api)
+
+	// Document Routes (HR & All employees)
+	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo, categoryService)
+	documentHandler.RegisterRoutes(api)
+
+	// Leave Routes
+	leaveHandler := handlers.NewLeaveHandler(leaveService, jwtService, employeeRepo)
+	leaveHandler.RegisterRoutes(api)
+
+	// Attendance Routes
+	attendanceHandler := handlers.NewAttendanceHandler(attendanceService, jwtService, employeeRepo)
+	attendanceHandler.RegisterRoutes(api)
+
+	//Sticker Routes
+	stickerHandler := handlers.NewStickerHandler(stickerService, jwtService, employeeRepo)
+	stickerHandler.RegisterRoutes(api)
+
+	// Department Routes
+	departmentHandler := handlers.NewDepartmentHandler(departmentService, jwtService, employeeRepo)
+	departmentHandler.RegisterRoutes(api)
 }

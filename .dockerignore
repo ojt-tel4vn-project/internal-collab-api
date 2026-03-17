@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Env files (pass secrets via docker-compose / CI)
+.env
+.env.*
+
+# Build artifacts
+tmp/
+temp/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Logs
+logs/
+*.log
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Go test cache / coverage
+*.out
+*.test
+vendor/
+.cache/
+
+# Docs (not needed inside container)
+docs/
+
+# Air hot-reload config (dev only)
+.air.toml
+.air_trigger
+
+# Readme
+README.md

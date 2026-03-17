@@ -7,6 +7,7 @@ import (
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/logger"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
+	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/sse"
 	"go.uber.org/zap"
 )
 
@@ -19,11 +20,12 @@ type NotificationService interface {
 }
 
 type notificationService struct {
-	repo repository.NotificationRepository
+	repo   repository.NotificationRepository
+	broker sse.SSEBroker
 }
 
-func NewNotificationService(repo repository.NotificationRepository) NotificationService {
-	return &notificationService{repo: repo}
+func NewNotificationService(repo repository.NotificationRepository, broker sse.SSEBroker) NotificationService {
+	return &notificationService{repo: repo, broker: broker}
 }
 
 func (s *notificationService) SendNotification(employeeID uuid.UUID, nType, title, message string, entityType *string, entityID *uuid.UUID, priority models.NotificationPriority) error {
@@ -44,11 +46,14 @@ func (s *notificationService) SendNotification(employeeID uuid.UUID, nType, titl
 	notification.ExpiresAt = &expiry
 
 	if err := s.repo.Create(notification); err != nil {
-		logger.Error("Failed to create notification", zap.Error(err), zap.String("email_id", employeeID.String()))
+		logger.Error("Failed to create notification", zap.Error(err), zap.String("employee_id", employeeID.String()))
 		return err
 	}
 
-	// TODO: Trigger WebSocket or Push Notification here if implemented
+	// Trigger Server-Sent Event
+	if s.broker != nil {
+		s.broker.Broadcast(employeeID, notification)
+	}
 	return nil
 }
 

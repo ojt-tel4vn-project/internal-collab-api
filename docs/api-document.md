@@ -29,10 +29,10 @@ Phúc
 - 👤 Admin & RBAC (User Management, Roles, Permissions)
 - 📝 Audit Logs (Action Tracking, Export)
 - ⚙️ Background Jobs (Birthday, Points Reset, Auto-confirm)
-
-Trung
 - 📅 Attendance Tracking (Upload, Confirm, Dispute, Auto-confirm)
 - 🏖️ Leave Management (Request, Approve via System/Email, Quota)
+
+Trung
 - 🎁 Reward System (Points, Stickers, Leaderboard)
 - 📚 Document Management (Categories, Upload, Read Tracking)
 
@@ -1048,80 +1048,6 @@ Response:
 GET /documents/categories
 Authorization: Bearer <token>
 ```
-
-#### Create Document Category (HR only)
-```http
-POST /documents/categories
-Authorization: Bearer <token>
-```
-
-Request:
-```json
-{
-  "name": "Training Materials",
-  "description": "Employee training documents",
-  "parent_id": null
-}
-```
-
-#### Update Document Category (HR only)
-```http
-PUT /documents/categories/{id}
-Authorization: Bearer <token>
-```
-
-Request:
-```json
-{
-  "name": "Updated Category Name",
-  "description": "Updated description"
-}
-```
-
-#### Delete Document Category (HR only)
-```http
-DELETE /documents/categories/{id}
-Authorization: Bearer <token>
-```
-
-Note: Category can only be deleted if it has no documents.
-
-#### List Documents
-```http
-GET /documents?category_id=1&search=handbook&page=1&limit=20
-Authorization: Bearer <token>
-```
-
-Request:
-```json
-{
-  "name": "Training Materials",
-  "description": "Employee training documents",
-  "parent_id": null
-}
-```
-
-#### Update Document Category (HR only)
-```http
-PUT /documents/categories/{id}
-Authorization: Bearer <token>
-```
-
-Request:
-```json
-{
-  "name": "Updated Category Name",
-  "description": "Updated description"
-}
-```
-
-#### Delete Document Category (HR only)
-```http
-DELETE /documents/categories/{id}
-Authorization: Bearer <token>
-```
-
-Note: Category can only be deleted if it has no documents.
 
 #### List Documents
 ```http

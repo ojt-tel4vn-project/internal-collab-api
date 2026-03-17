@@ -7,6 +7,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 	"github.com/ojt-tel4vn-project/internal-collab-api/dtos/notification"
+	"github.com/ojt-tel4vn-project/internal-collab-api/middleware"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/services"
 )
@@ -60,16 +61,34 @@ func (h *NotificationHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.MarkAsRead)
 
-	// Mark all as read
+	// Notification Preferences
 	huma.Register(api, huma.Operation{
-		OperationID: "notifications-mark-all-read",
-		Method:      http.MethodPut,
-		Path:        "/api/v1/notifications/read-all",
-		Summary:     "Mark All Notifications as Read",
+		OperationID: "notifications-preferences",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/notifications/preferences",
+		Summary:     "Get Notification Preferences",
 		Tags:        []string{"Notifications"},
-		Security: []map[string][]string{
-			{"bearerAuth": {}},
-		},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.GetPreferences)
+
+	// Notification Types
+	huma.Register(api, huma.Operation{
+		OperationID: "notifications-types",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/notifications/types",
+		Summary:     "Get Notification Types",
+		Tags:        []string{"Notifications"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.GetTypes)
+
+	// Mark all as read — POST alias (frontend calls POST)
+	huma.Register(api, huma.Operation{
+		OperationID: "notifications-mark-all-read-post",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/notifications/read-all",
+		Summary:     "Mark All Notifications as Read (POST)",
+		Tags:        []string{"Notifications"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.MarkAllAsRead)
 }
 
@@ -84,7 +103,7 @@ type GetNotificationsRequest struct {
 func (h *NotificationHandler) GetNotifications(ctx context.Context, input *GetNotificationsRequest) (*struct {
 	Body notification.ListNotificationResponse
 }, error) {
-	claims, err := h.jwtService.ValidateToken(input.Authorization)
+	claims, err := middleware.ValidateJWTFromHeader(input.Authorization, h.jwtService)
 	if err != nil {
 		return nil, huma.Error401Unauthorized("Invalid Token")
 	}
@@ -96,7 +115,6 @@ func (h *NotificationHandler) GetNotifications(ctx context.Context, input *GetNo
 
 	unreadCount, _ := h.service.GetUnreadCount(claims.UserID)
 
-	// Map to DTO
 	notificationList := make([]notification.NotificationResponse, len(notifications))
 	for i, n := range notifications {
 		notificationList[i] = notification.NotificationResponse{
@@ -133,7 +151,7 @@ func (h *NotificationHandler) GetUnreadCount(ctx context.Context, input *struct 
 }) (*struct {
 	Body notification.UnreadCountResponse
 }, error) {
-	claims, err := h.jwtService.ValidateToken(input.Authorization)
+	claims, err := middleware.ValidateJWTFromHeader(input.Authorization, h.jwtService)
 	if err != nil {
 		return nil, huma.Error401Unauthorized("Invalid Token")
 	}
@@ -156,7 +174,7 @@ func (h *NotificationHandler) MarkAsRead(ctx context.Context, input *struct {
 		Message string `json:"message"`
 	}
 }, error) {
-	claims, err := h.jwtService.ValidateToken(input.Authorization)
+	claims, err := middleware.ValidateJWTFromHeader(input.Authorization, h.jwtService)
 	if err != nil {
 		return nil, huma.Error401Unauthorized("Invalid Token")
 	}
@@ -166,8 +184,7 @@ func (h *NotificationHandler) MarkAsRead(ctx context.Context, input *struct {
 		return nil, huma.Error400BadRequest("Invalid ID format")
 	}
 
-	err = h.service.MarkAsRead(notifID, claims.UserID)
-	if err != nil {
+	if err = h.service.MarkAsRead(notifID, claims.UserID); err != nil {
 		return nil, huma.Error500InternalServerError("Failed to mark as read")
 	}
 
@@ -187,13 +204,12 @@ func (h *NotificationHandler) MarkAllAsRead(ctx context.Context, input *struct {
 		Message string `json:"message"`
 	}
 }, error) {
-	claims, err := h.jwtService.ValidateToken(input.Authorization)
+	claims, err := middleware.ValidateJWTFromHeader(input.Authorization, h.jwtService)
 	if err != nil {
 		return nil, huma.Error401Unauthorized("Invalid Token")
 	}
 
-	err = h.service.MarkAllAsRead(claims.UserID)
-	if err != nil {
+	if err = h.service.MarkAllAsRead(claims.UserID); err != nil {
 		return nil, huma.Error500InternalServerError("Failed to mark all as read")
 	}
 
@@ -204,4 +220,47 @@ func (h *NotificationHandler) MarkAllAsRead(ctx context.Context, input *struct {
 	}{Body: struct {
 		Message string `json:"message"`
 	}{Message: "All marked as read"}}, nil
+}
+
+// GetPreferences returns notification preferences (stub - returns empty for now)
+func (h *NotificationHandler) GetPreferences(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true"`
+}) (*struct {
+	Body struct {
+		Data map[string]bool `json:"data"`
+	}
+}, error) {
+	_, err := middleware.ValidateJWTFromHeader(input.Authorization, h.jwtService)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Invalid Token")
+	}
+	return &struct {
+		Body struct {
+			Data map[string]bool `json:"data"`
+		}
+	}{Body: struct {
+		Data map[string]bool `json:"data"`
+	}{Data: map[string]bool{"email": true, "in_app": true}}}, nil
+}
+
+// GetTypes returns all notification types
+func (h *NotificationHandler) GetTypes(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true"`
+}) (*struct {
+	Body struct {
+		Data []string `json:"data"`
+	}
+}, error) {
+	_, err := middleware.ValidateJWTFromHeader(input.Authorization, h.jwtService)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Invalid Token")
+	}
+	types := []string{"system", "leave", "birthday", "document", "announcement"}
+	return &struct {
+		Body struct {
+			Data []string `json:"data"`
+		}
+	}{Body: struct {
+		Data []string `json:"data"`
+	}{Data: types}}, nil
 }
