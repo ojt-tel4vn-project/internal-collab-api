@@ -17,6 +17,7 @@ type DocumentRepository interface {
 	FindByID(docID uuid.UUID) (*models.Document, error)
 	ExistsByTitle(title string) (bool, error)
 	Update(doc *models.Document) error
+	Delete(docID uuid.UUID) error
 }
 
 type documentRepositoryImpl struct {
@@ -88,4 +89,8 @@ func (r *documentRepositoryImpl) ExistsByTitle(title string) (bool, error) {
 		Where("title = ?", title).
 		Count(&count).Error
 	return count > 0, err
+}
+
+func (r *documentRepositoryImpl) Delete(docID uuid.UUID) error {
+	return r.db.Delete(&models.Document{}, "id = ?", docID).Error
 }

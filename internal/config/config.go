@@ -11,6 +11,7 @@ type Config struct {
 	Server   ServerConfig
 	JWT      JWTConfig
 	Email    EmailConfig
+	Supabase SupabaseConfig
 }
 
 type DatabaseConfig struct {
@@ -36,6 +37,12 @@ type EmailConfig struct {
 	BrevoAPIKey string
 	FromEmail   string
 	FromName    string
+}
+
+type SupabaseConfig struct {
+	URL    string
+	Bucket string
+	APIKey string
 }
 
 func Load() *Config {
