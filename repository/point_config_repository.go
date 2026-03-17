@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"gorm.io/gorm"
 )
@@ -32,9 +34,19 @@ func (r *pointConfigRepositoryImpl) GetPointConfig() (*models.PointConfig, error
 }
 
 func (r *pointConfigRepositoryImpl) WithTransaction(tx *gorm.DB) PointConfigRepository {
-    return &pointConfigRepositoryImpl{db: tx}
+	return &pointConfigRepositoryImpl{db: tx}
 }
 
 func (r *pointConfigRepositoryImpl) UpdatePointConfig(config *models.PointConfig) error {
-	return r.db.Save(config).Error
+	var existing models.PointConfig
+	if err := r.db.First(&existing).Error; err != nil {
+		return err
+	}
+
+	existing.YearlyPoints = config.YearlyPoints
+	existing.ResetMonth = config.ResetMonth
+	existing.ResetDay = config.ResetDay
+	existing.UpdatedAt = time.Now()
+
+	return r.db.Save(&existing).Error
 }

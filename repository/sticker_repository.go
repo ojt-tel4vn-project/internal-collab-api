@@ -6,25 +6,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type StickerRepository interface {
-	// transaction support
 	WithTransaction(tx *gorm.DB) StickerRepository
-
-	// points
 	GetPointBalance(employeeID uuid.UUID, year int) (*models.PointBalance, error)
 	UpdatePointBalance(balance *models.PointBalance) error
-
-	// sticker
-	GetStickerType(stickerTypeID uuid.UUID) (*models.StickerType, error)
-
-	// transaction
+	GetStickerTypeByID(stickerTypeID uuid.UUID) (*models.StickerType, error)
 	CreateStickerTransaction(tx *models.StickerTransaction) error
-
-	// leaderboard
 	GetLeaderboard(filter LeaderboardFilter) ([]LeaderboardResult, error)
+	CreatePointBalance(pointBalance *models.PointBalance) error
+	CreateSticker(sticker *models.StickerType) error
+	ListStickerTypes() ([]models.StickerType, error)
 }
 
 type LeaderboardFilter struct {
@@ -54,10 +47,17 @@ func (r *stickerRepositoryImpl) WithTransaction(tx *gorm.DB) StickerRepository {
 	return &stickerRepositoryImpl{db: tx}
 }
 
+func (r *stickerRepositoryImpl) CreatePointBalance(pointBalance *models.PointBalance) error {
+	return r.db.Create(pointBalance).Error
+}
+
+func (r *stickerRepositoryImpl) CreateSticker(sticker *models.StickerType) error {
+	return r.db.Create(sticker).Error
+}
+
 func (r *stickerRepositoryImpl) GetPointBalance(employeeID uuid.UUID, year int) (*models.PointBalance, error) {
 	var balance models.PointBalance
 	err := r.db.
-		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("employee_id = ? AND year = ?", employeeID, year).
 		First(&balance).Error
 	if err != nil {
@@ -67,16 +67,30 @@ func (r *stickerRepositoryImpl) GetPointBalance(employeeID uuid.UUID, year int) 
 }
 
 func (r *stickerRepositoryImpl) UpdatePointBalance(balance *models.PointBalance) error {
-	return r.db.Save(balance).Error
+	return r.db.Model(&models.PointBalance{}).
+		Where("id = ?", balance.ID).
+		Update("current_points", balance.CurrentPoints).Error
 }
 
-func (r *stickerRepositoryImpl) GetStickerType(stickerTypeID uuid.UUID) (*models.StickerType, error) {
+func (r *stickerRepositoryImpl) GetStickerTypeByID(stickerTypeID uuid.UUID) (*models.StickerType, error) {
 	var stickerType models.StickerType
-	err := r.db.First(&stickerType, "id = ?", stickerTypeID).Error
+	err := r.db.
+		Where("id = ? AND is_active = ?", stickerTypeID, true).
+		First(&stickerType).Error
 	if err != nil {
 		return nil, err
 	}
 	return &stickerType, nil
+}
+
+func (r *stickerRepositoryImpl) ListStickerTypes() ([]models.StickerType, error) {
+	var stickers []models.StickerType
+	err := r.db.
+		Where("is_active = ?", true).
+		Order("display_order ASC").
+		Find(&stickers).Error
+
+	return stickers, err
 }
 
 func (r *stickerRepositoryImpl) CreateStickerTransaction(tx *models.StickerTransaction) error {
@@ -86,13 +100,13 @@ func (r *stickerRepositoryImpl) CreateStickerTransaction(tx *models.StickerTrans
 func (r *stickerRepositoryImpl) GetLeaderboard(filter LeaderboardFilter) ([]LeaderboardResult, error) {
 	var results []LeaderboardResult
 	query := r.db.
-		Table("sticker_transactions st").
+		Table("sticker_transactions as st").
 		Select(`
 			st.receiver_id as employee_id,
 			e.full_name,
 			count(*) as total
 		`).
-		Joins("JOIN employees e ON e.id = st.receiver_id")
+		Joins("JOIN employees as e ON e.id = st.receiver_id")
 
 	// Filter by time range
 	if filter.StartDate != nil {

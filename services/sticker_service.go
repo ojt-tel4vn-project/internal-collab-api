@@ -2,9 +2,11 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ojt-tel4vn-project/internal-collab-api/dtos/sticker"
 	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
 	"gorm.io/gorm"
@@ -14,7 +16,9 @@ type StickerService interface {
 	SendSticker(senderID, receiverID, stickerTypeID uuid.UUID, message string) error
 	GetPointBalance(employeeID uuid.UUID) (*models.PointBalance, error)
 	GetLeaderboard(filter repository.LeaderboardFilter) ([]repository.LeaderboardResult, error)
-	UpdateGlobalConfig(points, month, day int) error
+	UpdateGlobalConfig(point, month, day int) error
+	CreateSticker(req sticker.CreateStickerRequest) (*models.StickerType, error)
+	ListStickerTypes() ([]models.StickerType, error)
 }
 
 type stickerServiceImpl struct {
@@ -22,6 +26,14 @@ type stickerServiceImpl struct {
 	configRepo repository.PointConfigRepository
 	db         *gorm.DB
 }
+
+var (
+	ErrSendToYourself  = errors.New("cannot send sticker to yourself")
+	ErrStickerNotFound = errors.New("sticker type not found")
+	ErrPointNotFound   = errors.New("sender point balance not found")
+	ErrNotEnoughPoints = errors.New("not enough points")
+	ErrStickerInactive = errors.New("sticker type is inactive")
+)
 
 func NewStickerService(repo repository.StickerRepository, configRepo repository.PointConfigRepository, db *gorm.DB) StickerService {
 	return &stickerServiceImpl{
@@ -31,39 +43,65 @@ func NewStickerService(repo repository.StickerRepository, configRepo repository.
 	}
 }
 
+func (s *stickerServiceImpl) CreateSticker(req sticker.CreateStickerRequest) (*models.StickerType, error) {
+	if strings.TrimSpace(req.Name) == "" {
+		return nil, errors.New("sticker name cannot be empty")
+	}
+
+	if req.PointCost <= 0 {
+		return nil, errors.New("point cost must be greater than zero")
+	}
+
+	newSticker := &models.StickerType{
+		Name:         req.Name,
+		Description:  req.Description,
+		PointCost:    req.PointCost,
+		Category:     req.Category,
+		IconURL:      req.IconURL,
+		DisplayOrder: req.DisplayOrder,
+		IsActive:     true,
+	}
+	if err := s.repo.CreateSticker(newSticker); err != nil {
+		return nil, err
+	}
+	return newSticker, nil
+
+}
+
 func (s *stickerServiceImpl) SendSticker(senderID, receiverID, stickerTypeID uuid.UUID, message string) error {
+	if len(message) > 500 {
+		return errors.New("message too long")
+	}
 	if senderID == receiverID {
-		return errors.New("cannot send sticker to yourself")
+		return ErrSendToYourself
 	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		// Use transaction-scoped repository
 		txRepo := s.repo.WithTransaction(tx)
 
 		// Get sticker type
-		stickerType, err := txRepo.GetStickerType(stickerTypeID)
+		stickerType, err := txRepo.GetStickerTypeByID(stickerTypeID)
 		if err != nil {
-			return errors.New("sticker type not found")
+			return ErrStickerNotFound
+		}
+
+		if !stickerType.IsActive {
+			return ErrStickerInactive
 		}
 
 		// Get sender's point balance for current year
 		year := time.Now().Year()
 		senderBalance, err := txRepo.GetPointBalance(senderID, year)
 		if err != nil {
-			return errors.New("sender point balance not found")
+			return ErrPointNotFound
 		}
 
 		// Check if sender has enough points
 		if senderBalance.CurrentPoints < stickerType.PointCost {
-			return errors.New("not enough points to send sticker")
+			return ErrNotEnoughPoints
 		}
 
-		// Deduct points from sender
-		senderBalance.CurrentPoints -= stickerType.PointCost
-		if err := txRepo.UpdatePointBalance(senderBalance); err != nil {
-			return err
-		}
-
-		// Create sticker transaction (receiver gets sticker but NOT points)
+		// Create sticker transaction - points will be deducted by database trigger automatically
 		transaction := &models.StickerTransaction{
 			SenderID:      senderID,
 			ReceiverID:    receiverID,
@@ -78,14 +116,17 @@ func (s *stickerServiceImpl) SendSticker(senderID, receiverID, stickerTypeID uui
 	})
 }
 
+func (s *stickerServiceImpl) ListStickerTypes() ([]models.StickerType, error) {
+	return s.repo.ListStickerTypes()
+}
+
 func (s *stickerServiceImpl) GetPointBalance(employeeID uuid.UUID) (*models.PointBalance, error) {
 	year := time.Now().Year()
 	balance, err := s.repo.GetPointBalance(employeeID, year)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Lấy cấu hình điểm
 			config, configErr := s.configRepo.GetPointConfig()
-			initialPoints := 500 // Mặc định nếu không có cấu hình
+			initialPoints := 500
 			if configErr == nil && config != nil {
 				initialPoints = config.YearlyPoints
 			}
@@ -96,8 +137,12 @@ func (s *stickerServiceImpl) GetPointBalance(employeeID uuid.UUID) (*models.Poin
 				InitialPoints: initialPoints,
 				CurrentPoints: initialPoints,
 			}
-			if err := s.repo.UpdatePointBalance(newBalance); err != nil {
-				return nil, err
+			if err := s.repo.CreatePointBalance(newBalance); err != nil {
+				existing, getErr := s.repo.GetPointBalance(employeeID, year)
+				if getErr != nil {
+					return nil, getErr
+				}
+				return existing, nil
 			}
 			return newBalance, nil
 		}
@@ -110,11 +155,20 @@ func (s *stickerServiceImpl) GetLeaderboard(filter repository.LeaderboardFilter)
 	return s.repo.GetLeaderboard(filter)
 }
 
-func (s *stickerServiceImpl) UpdateGlobalConfig(points, month, day int) error {
+func (s *stickerServiceImpl) UpdateGlobalConfig(point, month, day int) error {
 	newConfig := &models.PointConfig{
-		YearlyPoints: points,
+		YearlyPoints: point,
 		ResetMonth:   month,
 		ResetDay:     day,
+	}
+	if point <= 0 {
+		return errors.New("Yearly point must be greater than zero")
+	}
+	if month < 1 || month > 12 {
+		return errors.New("month must be between 1 and 12")
+	}
+	if day < 1 || day > 31 {
+		return errors.New("day must be between 1 and 31")
 	}
 	return s.configRepo.UpdatePointConfig(newConfig)
 }

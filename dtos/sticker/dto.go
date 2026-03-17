@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
 )
 
@@ -61,4 +62,26 @@ type UpdateConfigResponse struct {
 		Success bool   `json:"success"`
 		Message string `json:"message"`
 	}
+}
+
+type GetStickerTypesResponse struct {
+	Body struct {
+		Data []models.StickerType `json:"data"`
+	} `json:"body"`
+}
+
+type CreateStickerRequest struct {
+	Name         string `json:"name" required:"true"`
+	Description  string `json:"description"`
+	PointCost    int    `json:"point_cost" required:"true"`
+	Category     string `json:"category" required:"true"`
+	IconURL      string `json:"icon_url" form:"icon_url"`
+	DisplayOrder int    `json:"display_order"`
+}
+
+type CreateStickerResponse struct {
+	Body struct {
+		Success bool `json:"success"`
+		Data    any  `json:"data"`
+	} `json:"body"`
 }
