@@ -7,16 +7,16 @@ import (
 )
 
 type Document struct {
-	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	Title       string    `gorm:"type:varchar(255);not null" json:"title"`
-	Description string    `gorm:"type:text" json:"description"`
-	CategoryID  uuid.UUID `gorm:"type:uuid;not null" json:"category_id"`
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
 	FileName    string    `gorm:"type:varchar(255);not null" json:"file_name"`
-	FilePath    string    `gorm:"type:varchar(500);not null" json:"file_path"`
-	FileSize    int64     `gorm:"type:bigint" json:"file_size"`
-	MimeType    string    `gorm:"type:varchar(100)" json:"mime_type"`
-	Roles       string    `gorm:"type:varchar(100);not null;default:'employee'" json:"roles"`
-	UploadedBy  uuid.UUID `gorm:"type:uuid;not null" json:"uploaded_by"`
-	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	Description string    `gorm:"type:varchar(255)" json:"description"`
+	Title       string    `gorm:"type:varchar(255);not null;uniqueIndex"`
+	CategoryID  uuid.UUID `gorm:"type:uuid;not null"`
+	Roles       string    `gorm:"type:varchar(100);not null;default:'employee'"`
+	MimeType    string    `gorm:"type:varchar(255);not null"`
+	FileSize    int64     `gorm:"type:bigint;not null"`
+	FilePath    string    `gorm:"not null"`
+	UploadedBy  uuid.UUID `gorm:"type:uuid;not null"`
+	CreatedAt   time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt   time.Time `gorm:"column:updated_at" json:"updated_at"`
 }

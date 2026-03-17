@@ -51,4 +51,8 @@ func SetupRoutes(
 	// Attendance Routes
 	attendanceHandler := handlers.NewAttendanceHandler(attendanceService, jwtService, employeeRepo)
 	attendanceHandler.RegisterRoutes(api)
+
+	//Sticker Routes
+	stickerHandler := handlers.NewStickerHandler(stickerService, jwtService, employeeRepo)
+	stickerHandler.RegisterRoutes(api)
 }
