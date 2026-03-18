@@ -4,8 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ojt-tel4vn-project/internal-collab-api/models"
-	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
 )
 
 // Request DTOs
@@ -38,9 +36,15 @@ type PointBalanceResponse struct {
 	CurrentPoints int       `json:"current_points"`
 }
 
+type LeaderboardResult struct {
+	EmployeeID uuid.UUID `json:"employee_id"`
+	FullName   string    `json:"full_name"`
+	Total      int       `json:"total"`
+}
+
 type LeaderboardResponse struct {
 	Body struct {
-		Data []repository.LeaderboardResult `json:"data"`
+		Data []LeaderboardResult `json:"data"`
 	}
 }
 
@@ -64,9 +68,22 @@ type UpdateConfigResponse struct {
 	}
 }
 
+type StickerTypeResponse struct {
+	ID           uuid.UUID `json:"sticker_type_id"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	PointCost    int       `json:"point_cost"`
+	Category     string    `json:"category"`
+	IconURL      string    `json:"icon_url"`
+	IsActive     bool      `json:"is_active"`
+	DisplayOrder int       `json:"display_order"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type GetStickerTypesResponse struct {
 	Body struct {
-		Data []models.StickerType `json:"data"`
+		Data []StickerTypeResponse `json:"data"`
 	} `json:"body"`
 }
 

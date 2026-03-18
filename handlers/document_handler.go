@@ -12,7 +12,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 	docDTO "github.com/ojt-tel4vn-project/internal-collab-api/dtos/document"
-	models "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	authPkg "github.com/ojt-tel4vn-project/internal-collab-api/pkg/auth"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/utils"
@@ -372,7 +372,13 @@ func (h *DocumentHandler) ListDocuments(
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to list documents", err)
 	}
-	return &struct{ Body []docDTO.DocumentResponse }{Body: docs}, nil
+	return &docDTO.ListDocumentResponse{
+		Body: struct {
+			Data []docDTO.DocumentResponse `json:"data"`
+		}{
+			Data: docs,
+		},
+	}, nil
 }
 
 // ReadDocument function
