@@ -37,6 +37,7 @@ type EmployeeService interface {
 	GetSubordinates(managerID uuid.UUID) (*employee.ListSubordinatesResponse, error)
 	GetBirthdayConfig() (*employee.GetBirthdayConfigResponse, error)
 	UpdateBirthdayConfig(req *employee.UpdateBirthdayConfigRequest) (*employee.UpdateBirthdayConfigResponse, error)
+	SearchEmployees(query string) (*employee.SearchEmployeeResponse, error)
 }
 
 type employeeServiceImpl struct {
@@ -619,5 +620,45 @@ func (s *employeeServiceImpl) UpdateBirthdayConfig(req *employee.UpdateBirthdayC
 	return &employee.UpdateBirthdayConfigResponse{
 		Message: "Birthday configuration updated successfully",
 		Data:    cfg,
+	}, nil
+}
+
+func (s *employeeServiceImpl) SearchEmployees(query string) (*employee.SearchEmployeeResponse, error) {
+	if query == "" {
+		logger.Warn("SearchEmployees failed: empty query")
+		return nil, response.BadRequest("Search query cannot be empty")
+	}
+
+	employees, err := s.repo.SearchEmployees(query)
+	if err != nil {
+		logger.Error("SearchEmployees failed: database error", zap.Error(err))
+		return nil, response.InternalServerError("Failed to search employees")
+	}
+
+	searchResults := make([]employee.SearchEmployeeSummary, len(employees))
+	for i, emp := range employees {
+		searchResults[i] = employee.SearchEmployeeSummary{
+			ID:           emp.ID,
+			Email:        emp.Email,
+			FullName:     emp.FullName,
+			EmployeeCode: emp.EmployeeCode,
+			Phone:        emp.Phone,
+			Position:     emp.Position,
+			AvatarUrl:    emp.AvatarUrl,
+			Status:       string(emp.Status),
+			JoinDate:     emp.JoinDate,
+		}
+
+		if emp.Department != nil {
+			searchResults[i].Department = &employee.DepartmentBrief{
+				ID:   emp.Department.ID,
+				Name: emp.Department.Name,
+			}
+		}
+	}
+
+	return &employee.SearchEmployeeResponse{
+		Employees: searchResults,
+		Total:     len(searchResults),
 	}, nil
 }
