@@ -79,6 +79,17 @@ func (h *StickerHandler) RegisterRoutes(api huma.API) {
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.handleGetAllStickerTypes)
 
+	// Get Point Config
+	huma.Register(api, huma.Operation{
+		OperationID: "get-point-config",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/hr/stickers/config",
+		Summary:     "Get global point configuration (HR)",
+		Description: "Returns the current point configuration including yearly points and reset date.",
+		Tags:        []string{"Sticker", "HR"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.handleGetPointConfig)
+
 	//Create Sticker
 	huma.Register(api, huma.Operation{
 		OperationID: "create-sticker",
@@ -381,5 +392,26 @@ func (h *StickerHandler) handleUpdateGlobalConfig(ctx context.Context, input *st
 	res := &sticker.UpdateConfigResponse{}
 	res.Body.Success = true
 	res.Body.Message = "Point configuration updated successfully"
+	return res, nil
+}
+
+func (h *StickerHandler) handleGetPointConfig(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true"`
+}) (*sticker.GetPointConfigResponse, error) {
+	claims, err := middleware.ValidateJWTFromHeader(input.Authorization, h.jwtService)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Missing authentication")
+	}
+	if roleErr := middleware.CheckUserRole(claims.UserID, h.employeeRepo, "hr", "admin"); roleErr != nil {
+		return nil, huma.Error403Forbidden("Only HR or Admin can create stickers")
+	}
+
+	config, err := h.service.GetGlobalConfig()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to fetch point config", err)
+	}
+
+	res := &sticker.GetPointConfigResponse{}
+	res.Body.Data = *config
 	return res, nil
 }

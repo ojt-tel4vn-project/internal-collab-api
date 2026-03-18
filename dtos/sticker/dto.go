@@ -40,6 +40,7 @@ type LeaderboardResult struct {
 	EmployeeID uuid.UUID `json:"employee_id"`
 	FullName   string    `json:"full_name"`
 	Total      int       `json:"total"`
+	Department string    `json:"department"`
 }
 
 type LeaderboardResponse struct {
@@ -101,4 +102,17 @@ type CreateStickerResponse struct {
 		Success bool `json:"success"`
 		Data    any  `json:"data"`
 	} `json:"body"`
+}
+
+type PointConfigResponse struct {
+	YearlyPoints int       `json:"yearly_points"`
+	ResetMonth   int       `json:"reset_month"`
+	ResetDay     int       `json:"reset_day"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type GetPointConfigResponse struct {
+	Body struct {
+		Data PointConfigResponse `json:"data"`
+	}
 }
