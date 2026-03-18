@@ -12,7 +12,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 	docDTO "github.com/ojt-tel4vn-project/internal-collab-api/dtos/document"
-	"github.com/ojt-tel4vn-project/internal-collab-api/models"
+	models "github.com/ojt-tel4vn-project/internal-collab-api/models/document"
 	authPkg "github.com/ojt-tel4vn-project/internal-collab-api/pkg/auth"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/utils"
@@ -205,7 +205,6 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 	}, h.UpdateDocument)
 }
 
-// CreateDocument function
 func (h *DocumentHandler) CreateDocument(
 	ctx context.Context,
 	input *struct {
@@ -334,7 +333,7 @@ func (h *DocumentHandler) ListDocuments(
 	input *struct {
 		Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
 	},
-) (*struct{ Body []docDTO.DocumentResponse }, error) {
+) (*docDTO.ListDocumentResponse, error) {
 	// Validate login
 	claims, err := authPkg.Authorize(
 		input.Authorization,
