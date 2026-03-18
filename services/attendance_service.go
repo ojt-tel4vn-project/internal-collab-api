@@ -65,6 +65,11 @@ func NewAttendanceService(
 // Values: present | absent | late | leave (empty = not counted)
 func (s *attendanceService) UploadAttendance(uploaderID uuid.UUID, month, year int, csvContent string) ([]attendancedto.AttendanceResponse, error) {
 	reader := csv.NewReader(strings.NewReader(csvContent))
+	// Configure reader to handle various CSV formats
+	reader.LazyQuotes = true       // Allow lazy quotes
+	reader.TrimLeadingSpace = true // Trim leading space
+	reader.FieldsPerRecord = -1    // Allow variable number of fields
+
 	records, err := reader.ReadAll()
 	if err != nil {
 		return nil, fmt.Errorf("invalid CSV format: %w", err)
