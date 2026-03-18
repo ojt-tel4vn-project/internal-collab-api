@@ -74,41 +74,96 @@ func (s *attendanceService) UploadAttendance(uploaderID uuid.UUID, month, year i
 		return nil, errors.New("CSV must contain a header row and at least one data row")
 	}
 
-	var results []attendancedto.AttendanceResponse
+	// Map to store attendance data by employee ID
+	attendanceMap := make(map[string]models.AttendanceData)
+	employeeCache := make(map[string]*models.Employee)
 
-	// Skip header row (records[0])
-	for _, row := range records[1:] {
-		if len(row) < 2 {
+	// Parse CSV records
+	// Expected format: ID Người, Tên, Bộ phận, Ngày, Thời gian biểu, Tình trạng chuyên cần, Vào, Ra
+	for i, row := range records {
+		// Skip header row and detail rows (rows starting with "Thời gian vào:")
+		if i == 0 || len(row) < 6 {
 			continue
 		}
 
-		employeeCode := strings.TrimSpace(row[0])
-		if employeeCode == "" {
+		// Skip detail/summary rows
+		firstCol := strings.TrimSpace(row[0])
+		if firstCol == "" || strings.HasPrefix(firstCol, "Thời gian") || firstCol == "Chi Tiết Chấm Công" {
 			continue
 		}
 
-		// Find employee by code
-		emp, err := s.employeeRepo.FindByEmployeeCode(employeeCode)
-		if err != nil || emp == nil {
-			logger.Warn("Employee not found during attendance upload", zap.String("code", employeeCode))
+		employeeCode := firstCol
+		dateStr := strings.TrimSpace(row[3])     // Ngày: 2025-07-28
+		statusStr := strings.TrimSpace(row[5])   // Tình trạng: bình thường, Muộn, Về sớm, Vắng mặt
+		checkInStr := strings.TrimSpace(row[6])  // Vào: 08:19:35 or -
+		checkOutStr := strings.TrimSpace(row[7]) // Ra: 19:26:14 or -
+
+		// Parse date to get day number
+		dateParts := strings.Split(dateStr, "-")
+		if len(dateParts) != 3 {
+			continue
+		}
+		day, err := strconv.Atoi(dateParts[2])
+		if err != nil || day < 1 || day > 31 {
 			continue
 		}
 
-		// Build attendance data map
-		data := models.AttendanceData{}
-		for dayIdx, val := range row[1:] {
-			day := dayIdx + 1
-			v := strings.ToLower(strings.TrimSpace(val))
-			switch v {
-			case "present", "absent", "late", "leave":
-				data[strconv.Itoa(day)] = models.DayStatus(v)
+		// Find or cache employee
+		emp, exists := employeeCache[employeeCode]
+		if !exists {
+			emp, err = s.employeeRepo.FindByEmployeeCode(employeeCode)
+			if err != nil || emp == nil {
+				logger.Warn("Employee not found during attendance upload", zap.String("code", employeeCode))
+				continue
 			}
+			employeeCache[employeeCode] = emp
 		}
+
+		// Initialize attendance data for this employee if not exists
+		if attendanceMap[employeeCode] == nil {
+			attendanceMap[employeeCode] = make(models.AttendanceData)
+		}
+
+		// Map status from Vietnamese to system status
+		var status models.DayStatus
+		switch strings.ToLower(statusStr) {
+		case "bình thường":
+			status = models.DayStatusPresent
+		case "muộn":
+			status = models.DayStatusLate
+		case "vắng mặt":
+			status = models.DayStatusAbsent
+		case "về sớm":
+			status = models.DayStatusPresent // Consider early leave as present but can be tracked
+		default:
+			status = models.DayStatusPresent
+		}
+
+		// Calculate work hours if check-in and check-out are available
+		var workHours float64
+		if checkInStr != "-" && checkOutStr != "-" && checkInStr != "" && checkOutStr != "" {
+			workHours = calculateWorkHours(checkInStr, checkOutStr)
+		}
+
+		// Store day attendance detail
+		dayKey := strconv.Itoa(day)
+		attendanceMap[employeeCode][dayKey] = models.DayAttendanceDetail{
+			Status:       status,
+			CheckInTime:  checkInStr,
+			CheckOutTime: checkOutStr,
+			WorkHours:    workHours,
+		}
+	}
+
+	// Create or update attendance records
+	var results []attendancedto.AttendanceResponse
+	for employeeCode, data := range attendanceMap {
+		emp := employeeCache[employeeCode]
 
 		// Calculate totals
 		var present, absent, late int32
-		for _, status := range data {
-			switch status {
+		for _, detail := range data {
+			switch detail.Status {
 			case models.DayStatusPresent:
 				present++
 			case models.DayStatusAbsent:
@@ -151,6 +206,33 @@ func (s *attendanceService) UploadAttendance(uploaderID uuid.UUID, month, year i
 	}
 
 	return results, nil
+}
+
+// calculateWorkHours calculates work hours from check-in and check-out time strings (HH:MM:SS)
+func calculateWorkHours(checkIn, checkOut string) float64 {
+	parseTime := func(timeStr string) (int, int, int) {
+		parts := strings.Split(timeStr, ":")
+		if len(parts) != 3 {
+			return 0, 0, 0
+		}
+		h, _ := strconv.Atoi(parts[0])
+		m, _ := strconv.Atoi(parts[1])
+		s, _ := strconv.Atoi(parts[2])
+		return h, m, s
+	}
+
+	inH, inM, inS := parseTime(checkIn)
+	outH, outM, outS := parseTime(checkOut)
+
+	inSeconds := inH*3600 + inM*60 + inS
+	outSeconds := outH*3600 + outM*60 + outS
+
+	diffSeconds := outSeconds - inSeconds
+	if diffSeconds < 0 {
+		diffSeconds += 24 * 3600 // Handle overnight shift
+	}
+
+	return float64(diffSeconds) / 3600.0
 }
 
 func (s *attendanceService) ListAttendances(employeeID *uuid.UUID, month, year int, status string, page, limit int) ([]attendancedto.AttendanceResponse, int64, error) {

@@ -25,9 +25,17 @@ const (
 	DayStatusLeave   DayStatus = "leave"
 )
 
-// AttendanceData stores daily status as a map: {"1": "present", "2": "absent", ...}
+// DayAttendanceDetail stores detailed attendance info for a specific day
+type DayAttendanceDetail struct {
+	Status       DayStatus `json:"status"`                   // present, absent, late, leave
+	CheckInTime  string    `json:"check_in_time,omitempty"`  // HH:MM:SS format
+	CheckOutTime string    `json:"check_out_time,omitempty"` // HH:MM:SS format
+	WorkHours    float64   `json:"work_hours,omitempty"`     // Total work hours
+}
+
+// AttendanceData stores daily attendance details as a map: {"1": {...}, "2": {...}, ...}
 // GORM stores this as JSONB
-type AttendanceData map[string]DayStatus
+type AttendanceData map[string]DayAttendanceDetail
 
 // Attendance represents a monthly attendance record per employee
 type Attendance struct {
