@@ -31,6 +31,7 @@ type LeaderboardResult struct {
 	EmployeeID uuid.UUID `gorm:"column:employee_id" json:"employee_id"`
 	FullName   string    `gorm:"->;column:full_name" json:"full_name"`
 	Total      int       `gorm:"column:total" json:"total"`
+	Department string    `gorm:"column:department_name" json:"department"`
 }
 
 type stickerRepositoryImpl struct {
@@ -104,9 +105,11 @@ func (r *stickerRepositoryImpl) GetLeaderboard(filter LeaderboardFilter) ([]Lead
 		Select(`
 			st.receiver_id as employee_id,
 			e.full_name,
+			d.name as department_name,
 			count(*) as total
 		`).
-		Joins("JOIN employees as e ON e.id = st.receiver_id")
+		Joins("JOIN employees as e ON e.id = st.receiver_id").
+		Joins("LEFT JOIN departments as d ON d.id = e.department_id")
 
 	// Filter by time range
 	if filter.StartDate != nil {
@@ -126,7 +129,7 @@ func (r *stickerRepositoryImpl) GetLeaderboard(filter LeaderboardFilter) ([]Lead
 	}
 
 	err := query.
-		Group("st.receiver_id, e.full_name").
+		Group("st.receiver_id, e.full_name, d.name").
 		Order("total DESC").
 		Limit(filter.Limit).
 		Scan(&results).Error

@@ -40,6 +40,7 @@ type LeaderboardResult struct {
 	EmployeeID uuid.UUID `json:"employee_id"`
 	FullName   string    `json:"full_name"`
 	Total      int       `json:"total"`
+	Department string    `json:"department"`
 }
 
 type LeaderboardResponse struct {

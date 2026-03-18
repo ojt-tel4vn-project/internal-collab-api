@@ -186,6 +186,7 @@ func (s *stickerServiceImpl) GetLeaderboard(filter repository.LeaderboardFilter)
 			EmployeeID: r.EmployeeID,
 			FullName:   r.FullName,
 			Total:      r.Total,
+			Department: r.Department,
 		}
 	}
 	return dtoResults, nil
