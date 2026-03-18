@@ -15,6 +15,7 @@ type EmployeeRepository interface {
 	FindSubordinates(managerID uuid.UUID) ([]models.Employee, error)
 	FindAllBirthdays() ([]models.Employee, error)
 	FindRoleByName(name string) (*models.Role, error)
+	SearchEmployees(query string) ([]models.Employee, error)
 }
 
 type employeeRepository struct {
@@ -97,4 +98,15 @@ func (r *employeeRepository) FindRoleByName(name string) (*models.Role, error) {
 	var role models.Role
 	err := r.db.Where("name = ?", name).First(&role).Error
 	return &role, err
+}
+
+func (r *employeeRepository) SearchEmployees(query string) ([]models.Employee, error) {
+	var employees []models.Employee
+	searchPattern := "%" + query + "%"
+	err := r.db.Preload("Department").
+		Where("status = ? AND unaccent(full_name) ILIKE ?",
+			models.StatusActive, searchPattern).
+		Order("full_name ASC").
+		Find(&employees).Error
+	return employees, err
 }

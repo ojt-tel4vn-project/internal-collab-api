@@ -142,6 +142,17 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		},
 	}, h.GetSubordinates)
 
+	huma.Register(api, huma.Operation{
+		OperationID: "search-employees",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/employees/search",
+		Summary:     "Search employees by name",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.SearchEmployees)
+
 	// Self-service profile endpoints
 	huma.Register(api, huma.Operation{
 		OperationID: "get-profile",
@@ -613,4 +624,31 @@ func (h *EmployeeHandler) UploadAvatar(ctx context.Context, input *struct {
 		Message:   "Avatar uploaded successfully",
 		AvatarUrl: avatarURL,
 	}}, nil
+}
+
+func (h *EmployeeHandler) SearchEmployees(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+	Query         string `query:"query" required:"true" doc:"Search by employee name (supports Vietnamese)"`
+}) (*struct {
+	Body employee.SearchEmployeeResponse
+}, error) {
+	// Validate JWT
+	if !strings.HasPrefix(input.Authorization, "Bearer ") {
+		return nil, huma.Error401Unauthorized("Invalid authorization format")
+	}
+
+	token := strings.TrimPrefix(input.Authorization, "Bearer ")
+	_, err := h.jwtService.ValidateToken(token)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Invalid or expired token")
+	}
+
+	resp, err := h.service.SearchEmployees(input.Query)
+	if err != nil {
+		return nil, huma.Error400BadRequest("Failed to search employees", err)
+	}
+
+	return &struct {
+		Body employee.SearchEmployeeResponse
+	}{Body: *resp}, nil
 }

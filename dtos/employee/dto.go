@@ -180,3 +180,25 @@ type UpdateBirthdayConfigResponse struct {
 	Message string         `json:"message"`
 	Data    BirthdayConfig `json:"data"`
 }
+
+type SearchEmployeeRequest struct {
+	Query string `json:"query" query:"query" doc:"Search by name, email"`
+}
+
+type SearchEmployeeResponse struct {
+	Employees []SearchEmployeeSummary `json:"employees"`
+	Total     int                     `json:"total"`
+}
+
+type SearchEmployeeSummary struct {
+	ID           uuid.UUID        `json:"id"`
+	Email        string           `json:"email"`
+	FullName     string           `json:"full_name"`
+	EmployeeCode string           `json:"employee_code"`
+	Phone        string           `json:"phone"`
+	Position     string           `json:"position"`
+	Department   *DepartmentBrief `json:"department"`
+	AvatarUrl    string           `json:"avatar_url"`
+	Status       string           `json:"status"`
+	JoinDate     time.Time        `json:"join_date"`
+}
