@@ -22,6 +22,7 @@ func SetupRoutes(
 	attendanceService services.AttendanceService,
 	stickerService services.StickerService,
 	commentService services.CommentService,
+	departmentService services.DepartmentService,
 ) {
 	// Auth Routes (with JWT service)
 	authHandler := handlers.NewAuthHandler(authService, jwtService)
@@ -32,6 +33,10 @@ func SetupRoutes(
 
 	employeeHandler.RegisterRoutes(api)
 
+	// Document Routes (with JWT service and employee repo for role checking)
+	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo, categoryService)
+	documentHandler.RegisterRoutes(api)
+
 	// Audit Log Routes (Admin only)
 	auditLogHandler := handlers.NewAuditLogHandler(auditLogService, jwtService, employeeRepo)
 	auditLogHandler.RegisterRoutes(api)
@@ -39,10 +44,6 @@ func SetupRoutes(
 	// Notification Routes
 	notificationHandler := handlers.NewNotificationHandler(notificationService, jwtService)
 	notificationHandler.RegisterRoutes(api)
-
-	// Document Routes (HR & All employees)
-	documentHandler := handlers.NewDocumentHandler(documentService, jwtService, employeeRepo, categoryService)
-	documentHandler.RegisterRoutes(api)
 
 	// Leave Routes
 	leaveHandler := handlers.NewLeaveHandler(leaveService, jwtService, employeeRepo)
@@ -55,4 +56,8 @@ func SetupRoutes(
 	//Sticker Routes
 	stickerHandler := handlers.NewStickerHandler(stickerService, jwtService, employeeRepo)
 	stickerHandler.RegisterRoutes(api)
+
+	// Department Routes
+	departmentHandler := handlers.NewDepartmentHandler(departmentService, jwtService, employeeRepo)
+	departmentHandler.RegisterRoutes(api)
 }

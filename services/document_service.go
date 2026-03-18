@@ -44,6 +44,7 @@ type DocumentService interface {
 	FindByID(docID uuid.UUID) (*models.Document, error)
 	ExistsByTitle(title string) (bool, error)
 	Update(doc models.Document) (*models.Document, error)
+	Delete(docID uuid.UUID) error
 
 	// Validation methods
 	ValidateFile(filename string, fileSize int64, mimeType string) error
@@ -250,4 +251,8 @@ func (s *documentServiceImpl) GenerateStoragePath(title, originalFilename string
 	path := "documents/" + filename
 
 	return path, filename
+}
+
+func (s *documentServiceImpl) Delete(docID uuid.UUID) error {
+	return s.repo.Delete(docID)
 }

@@ -14,6 +14,7 @@ type EmployeeRepository interface {
 	FindEmployeesByBirthday(month, day int) ([]models.Employee, error)
 	FindSubordinates(managerID uuid.UUID) ([]models.Employee, error)
 	FindAllBirthdays() ([]models.Employee, error)
+	FindRoleByName(name string) (*models.Role, error)
 }
 
 type employeeRepository struct {
@@ -28,10 +29,12 @@ func NewEmployeeRepository(db *gorm.DB) EmployeeRepository {
 	}
 }
 
-// FindAll overrides BaseRepository to preload Role and Department
+// FindAll overrides BaseRepository to preload Role and Department, only returns active employees
 func (r *employeeRepository) FindAll() ([]models.Employee, error) {
 	var employees []models.Employee
-	err := r.db.Preload("Role").Preload("Department").Find(&employees).Error
+	err := r.db.Preload("Role").Preload("Department").
+		Where("status = ?", models.StatusActive).
+		Find(&employees).Error
 	return employees, err
 }
 
@@ -65,7 +68,8 @@ func (r *employeeRepository) FindByPasswordResetToken(token string) (*models.Emp
 func (r *employeeRepository) FindEmployeesByBirthday(month, day int) ([]models.Employee, error) {
 	var employees []models.Employee
 	err := r.db.Preload("Department").
-		Where("EXTRACT(MONTH FROM date_of_birth) = ? AND EXTRACT(DAY FROM date_of_birth) = ?", month, day).
+		Where("EXTRACT(MONTH FROM date_of_birth) = ? AND EXTRACT(DAY FROM date_of_birth) = ? AND status = ?",
+			month, day, models.StatusActive).
 		Find(&employees).Error
 	return employees, err
 }
@@ -82,6 +86,15 @@ func (r *employeeRepository) FindAllBirthdays() ([]models.Employee, error) {
 
 func (r *employeeRepository) FindSubordinates(managerID uuid.UUID) ([]models.Employee, error) {
 	var employees []models.Employee
-	err := r.db.Preload("Department").Where("manager_id = ?", managerID).Find(&employees).Error
+	err := r.db.Preload("Department").
+		Where("manager_id = ? AND status = ?", managerID, models.StatusActive).
+		Find(&employees).Error
 	return employees, err
+}
+
+// FindRoleByName finds a role by its name
+func (r *employeeRepository) FindRoleByName(name string) (*models.Role, error) {
+	var role models.Role
+	err := r.db.Where("name = ?", name).First(&role).Error
+	return &role, err
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/email"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/logger"
+	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/sse"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
 	"github.com/ojt-tel4vn-project/internal-collab-api/routes"
 	"github.com/ojt-tel4vn-project/internal-collab-api/services"
@@ -68,6 +69,7 @@ func main() {
 	categoryRepo := repository.NewDocumentCategoryRepository(database.DB)
 	documentRepo := repository.NewDocumentRepository(database.DB)
 	appConfigRepo := repository.NewAppConfigRepository(database.DB)
+	departmentRepo := repository.NewDepartmentRepository(database.DB)
 
 	// Utils
 	jwtService := crypto.NewJWTService()
@@ -77,19 +79,28 @@ func main() {
 	auditLogRepo := repository.NewAuditLogRepository(database.DB)
 	auditLogService := services.NewAuditLogService(auditLogRepo)
 
-	// Notifications
+	// Department
+	departmentService := services.NewDepartmentService(departmentRepo)
+
+	// Notifications & SSE
+	sseBroker := sse.NewSSEBroker(jwtService)
+	sseBroker.Start()
+	defer sseBroker.Stop()
+
 	notificationRepo := repository.NewNotificationRepository(database.DB)
-	notificationService := services.NewNotificationService(notificationRepo)
+	notificationService := services.NewNotificationService(notificationRepo, sseBroker)
 
 	// Email Service
 	var emailService email.EmailService
 	if cfg.Email.BrevoAPIKey != "" {
-		emailService = email.NewBrevoEmailService(
+		baseEmailService := email.NewBrevoEmailService(
 			cfg.Email.BrevoAPIKey,
 			cfg.Email.FromEmail,
 			cfg.Email.FromName,
 		)
-		log.Println("Email service initialized (Brevo)")
+		// Wrap with Async Email Service (3 concurrent workers)
+		emailService = email.NewAsyncEmailService(baseEmailService, 3)
+		log.Println("Async Email service initialized (Brevo)")
 	} else {
 		log.Println("Email service disabled (no BREVO_API_KEY configured)")
 	}
@@ -147,6 +158,9 @@ func main() {
 	})
 	router.Use(mw)
 
+	// SSE Route (Bypassing Huma because it strictly expects JSON standard response)
+	router.GET("/api/v1/notifications/stream", sseBroker.ServeHTTP())
+
 	// Setup Huma API
 	humaConfig := huma.DefaultConfig("Internal Collab API", "1.0.0")
 	api := humagin.New(router, humaConfig)
@@ -164,7 +178,8 @@ func main() {
 		leaveService,
 		attendanceService,
 		stickerService,
-		commentService)
+		commentService,
+		departmentService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)

@@ -203,6 +203,18 @@ func (h *DocumentHandler) RegisterRoutes(api huma.API) {
 			{"bearerAuth": {}},
 		},
 	}, h.UpdateDocument)
+
+	// Delete Document - HR
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-document",
+		Method:      http.MethodDelete,
+		Path:        "/api/v1/hr/documents/{id}",
+		Summary:     "Delete document (HR only)",
+		Tags:        []string{"HR", "Documents"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.DeleteDocument)
 }
 
 func (h *DocumentHandler) CreateDocument(
@@ -360,7 +372,13 @@ func (h *DocumentHandler) ListDocuments(
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to list documents", err)
 	}
-	return &struct{ Body []docDTO.DocumentResponse }{Body: docs}, nil
+	return &docDTO.ListDocumentResponse{
+		Body: struct {
+			Data []docDTO.DocumentResponse `json:"data"`
+		}{
+			Data: docs,
+		},
+	}, nil
 }
 
 // ReadDocument function
@@ -647,6 +665,54 @@ func (h *DocumentHandler) UpdateDocument(
 			IsRead:      false,
 			CreatedAt:   updated.CreatedAt,
 			UpdatedAt:   updated.UpdatedAt,
+		},
+	}, nil
+}
+
+func (h *DocumentHandler) DeleteDocument(
+	ctx context.Context,
+	input *struct {
+		Authorization string    `header:"Authorization" required:"true" doc:"Bearer token"`
+		ID            uuid.UUID `path:"id" required:"true" doc:"Document ID"`
+	},
+) (*struct {
+	Body struct {
+		Message string `json:"message"`
+	}
+}, error) {
+	// HR/Admin only
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			Roles: []string{"hr", "admin"},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if document exists
+	doc, err := h.service.FindByID(input.ID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Document not found")
+	}
+
+	// Delete the document
+	if err := h.service.Delete(input.ID); err != nil {
+		return nil, huma.Error500InternalServerError("Failed to delete document", err)
+	}
+
+	return &struct {
+		Body struct {
+			Message string `json:"message"`
+		}
+	}{
+		Body: struct {
+			Message string `json:"message"`
+		}{
+			Message: fmt.Sprintf("Document '%s' deleted successfully", doc.Title),
 		},
 	}, nil
 }

@@ -15,10 +15,10 @@ import (
 type StickerService interface {
 	SendSticker(senderID, receiverID, stickerTypeID uuid.UUID, message string) error
 	GetPointBalance(employeeID uuid.UUID) (*models.PointBalance, error)
-	GetLeaderboard(filter repository.LeaderboardFilter) ([]repository.LeaderboardResult, error)
+	GetLeaderboard(filter repository.LeaderboardFilter) ([]sticker.LeaderboardResult, error)
 	UpdateGlobalConfig(point, month, day int) error
 	CreateSticker(req sticker.CreateStickerRequest) (*models.StickerType, error)
-	ListStickerTypes() ([]models.StickerType, error)
+	ListStickerTypes() ([]sticker.StickerTypeResponse, error)
 }
 
 type stickerServiceImpl struct {
@@ -116,8 +116,29 @@ func (s *stickerServiceImpl) SendSticker(senderID, receiverID, stickerTypeID uui
 	})
 }
 
-func (s *stickerServiceImpl) ListStickerTypes() ([]models.StickerType, error) {
-	return s.repo.ListStickerTypes()
+func (s *stickerServiceImpl) ListStickerTypes() ([]sticker.StickerTypeResponse, error) {
+	stickers, err := s.repo.ListStickerTypes()
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert models to DTOs
+	result := make([]sticker.StickerTypeResponse, len(stickers))
+	for i, st := range stickers {
+		result[i] = sticker.StickerTypeResponse{
+			ID:           st.ID,
+			Name:         st.Name,
+			Description:  st.Description,
+			PointCost:    st.PointCost,
+			Category:     st.Category,
+			IconURL:      st.IconURL,
+			IsActive:     st.IsActive,
+			DisplayOrder: st.DisplayOrder,
+			CreatedAt:    st.CreatedAt,
+			UpdatedAt:    st.UpdatedAt,
+		}
+	}
+	return result, nil
 }
 
 func (s *stickerServiceImpl) GetPointBalance(employeeID uuid.UUID) (*models.PointBalance, error) {
@@ -151,24 +172,29 @@ func (s *stickerServiceImpl) GetPointBalance(employeeID uuid.UUID) (*models.Poin
 	return balance, nil
 }
 
-func (s *stickerServiceImpl) GetLeaderboard(filter repository.LeaderboardFilter) ([]repository.LeaderboardResult, error) {
-	return s.repo.GetLeaderboard(filter)
+func (s *stickerServiceImpl) GetLeaderboard(filter repository.LeaderboardFilter) ([]sticker.LeaderboardResult, error) {
+	results, err := s.repo.GetLeaderboard(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert repository results to DTOs
+	dtoResults := make([]sticker.LeaderboardResult, len(results))
+	for i, r := range results {
+		dtoResults[i] = sticker.LeaderboardResult{
+			EmployeeID: r.EmployeeID,
+			FullName:   r.FullName,
+			Total:      r.Total,
+		}
+	}
+	return dtoResults, nil
 }
 
-func (s *stickerServiceImpl) UpdateGlobalConfig(point, month, day int) error {
+func (s *stickerServiceImpl) UpdateGlobalConfig(points, month, day int) error {
 	newConfig := &models.PointConfig{
-		YearlyPoints: point,
+		YearlyPoints: points,
 		ResetMonth:   month,
 		ResetDay:     day,
-	}
-	if point <= 0 {
-		return errors.New("Yearly point must be greater than zero")
-	}
-	if month < 1 || month > 12 {
-		return errors.New("month must be between 1 and 12")
-	}
-	if day < 1 || day > 31 {
-		return errors.New("day must be between 1 and 31")
 	}
 	return s.configRepo.UpdatePointConfig(newConfig)
 }
