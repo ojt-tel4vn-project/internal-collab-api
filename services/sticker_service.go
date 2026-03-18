@@ -17,6 +17,7 @@ type StickerService interface {
 	GetPointBalance(employeeID uuid.UUID) (*models.PointBalance, error)
 	GetLeaderboard(filter repository.LeaderboardFilter) ([]sticker.LeaderboardResult, error)
 	UpdateGlobalConfig(point, month, day int) error
+	GetGlobalConfig() (*sticker.PointConfigResponse, error)
 	CreateSticker(req sticker.CreateStickerRequest) (*models.StickerType, error)
 	ListStickerTypes() ([]sticker.StickerTypeResponse, error)
 }
@@ -197,4 +198,19 @@ func (s *stickerServiceImpl) UpdateGlobalConfig(points, month, day int) error {
 		ResetDay:     day,
 	}
 	return s.configRepo.UpdatePointConfig(newConfig)
+}
+
+func (s *stickerServiceImpl) GetGlobalConfig() (*sticker.PointConfigResponse, error) {
+	config, err := s.configRepo.GetPointConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &sticker.PointConfigResponse{
+		YearlyPoints: config.YearlyPoints,
+		ResetMonth:   config.ResetMonth,
+		ResetDay:     config.ResetDay,
+		UpdatedAt:    config.UpdatedAt,
+	}
+	return response, nil
 }

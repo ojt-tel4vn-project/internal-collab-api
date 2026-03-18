@@ -102,3 +102,16 @@ type CreateStickerResponse struct {
 		Data    any  `json:"data"`
 	} `json:"body"`
 }
+
+type PointConfigResponse struct {
+	YearlyPoints int       `json:"yearly_points"`
+	ResetMonth   int       `json:"reset_month"`
+	ResetDay     int       `json:"reset_day"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type GetPointConfigResponse struct {
+	Body struct {
+		Data PointConfigResponse `json:"data"`
+	}
+}
