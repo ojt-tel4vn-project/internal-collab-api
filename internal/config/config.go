@@ -14,12 +14,6 @@ type Config struct {
 	Supabase SupabaseConfig
 }
 
-type SupabaseConfig struct {
-	URL    string
-	Bucket string
-	APIKey string
-}
-
 type DatabaseConfig struct {
 	Host     string
 	Port     string
@@ -43,6 +37,12 @@ type EmailConfig struct {
 	BrevoAPIKey string
 	FromEmail   string
 	FromName    string
+}
+
+type SupabaseConfig struct {
+	URL    string
+	Bucket string
+	APIKey string
 }
 
 func Load() *Config {

@@ -228,15 +228,7 @@ func (h *EmployeeHandler) CreateEmployee(ctx context.Context, input *struct {
 	Body employee.CreateEmployeeResponse
 }, error) {
 	// Validate HR access
-	_, err := authPkg.Authorize(
-		input.Authorization,
-		h.jwtService,
-		h.employeeRepo,
-		authPkg.AuthOptions{
-			Roles: []string{"hr", "admin"},
-		},
-	)
-	if err != nil {
+	if err := h.validateHRAccess(input.Authorization); err != nil {
 		return nil, err
 	}
 
