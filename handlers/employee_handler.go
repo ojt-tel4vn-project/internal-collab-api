@@ -79,7 +79,8 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		OperationID: "delete-employee",
 		Method:      http.MethodDelete,
 		Path:        "/api/v1/hr/employees/{id}",
-		Summary:     "Delete employee (HR only)",
+		Summary:     "Offboard employee (HR only)",
+		Description: "Soft delete: Sets employee status to 'offboard' and records leave date. Employee will no longer appear in active lists.",
 		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
@@ -362,7 +363,7 @@ func (h *EmployeeHandler) DeleteEmployee(ctx context.Context, input *struct {
 	}
 
 	if err := h.service.DeleteEmployee(uid); err != nil {
-		return nil, huma.Error500InternalServerError("Failed to delete employee", err)
+		return nil, huma.Error500InternalServerError("Failed to offboard employee", err)
 	}
 
 	return &struct {
@@ -373,7 +374,7 @@ func (h *EmployeeHandler) DeleteEmployee(ctx context.Context, input *struct {
 		Body: struct {
 			Message string `json:"message"`
 		}{
-			Message: "Employee deleted successfully",
+			Message: "Employee offboarded successfully",
 		},
 	}, nil
 }

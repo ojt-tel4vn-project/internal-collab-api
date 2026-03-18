@@ -443,18 +443,23 @@ func (s *employeeServiceImpl) UploadAvatar(ctx context.Context, employeeID uuid.
 }
 
 func (s *employeeServiceImpl) DeleteEmployee(id uuid.UUID) error {
-	_, err := s.repo.FindByID(id)
+	emp, err := s.repo.FindByID(id)
 	if err != nil {
 		logger.Warn("DeleteEmployee failed: employee not found", zap.String("id", id.String()))
 		return response.NotFound("Employee not found")
 	}
 
-	if err := s.repo.Delete(id); err != nil {
-		logger.Error("DeleteEmployee failed: database delete error", zap.Error(err))
-		return response.InternalServerError("Failed to delete employee")
+	// Soft delete: set status to offboard instead of hard delete
+	emp.Status = models.StatusOffBoard
+	now := time.Now()
+	emp.LeaveDate = &now
+
+	if err := s.repo.Update(emp); err != nil {
+		logger.Error("DeleteEmployee failed: database update error", zap.Error(err))
+		return response.InternalServerError("Failed to offboard employee")
 	}
 
-	logger.Info("Employee deleted successfully", zap.String("employee_id", id.String()))
+	logger.Info("Employee offboarded successfully", zap.String("employee_id", id.String()))
 	return nil
 }
 
