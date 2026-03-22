@@ -183,10 +183,15 @@ func (s *stickerServiceImpl) GetLeaderboard(filter repository.LeaderboardFilter)
 	dtoResults := make([]sticker.LeaderboardResult, len(results))
 	for i, r := range results {
 		dtoResults[i] = sticker.LeaderboardResult{
-			EmployeeID: r.EmployeeID,
-			FullName:   r.FullName,
-			Total:      r.Total,
-			Department: r.Department,
+			EmployeeID:   r.EmployeeID,
+			EmployeeCode: r.EmployeeCode,
+			FullName:     r.FullName,
+			Email:        r.Email,
+			Position:     r.Position,
+			AvatarURL:    r.AvatarURL,
+			Total:        r.Total,
+			Department:   r.Department,
+			DepartmentID: r.DepartmentID,
 		}
 	}
 	return dtoResults, nil

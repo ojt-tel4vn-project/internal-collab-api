@@ -9,9 +9,10 @@ import (
 // Request DTOs
 
 type SendStickerRequest struct {
-	ReceiverID    uuid.UUID `json:"receiver_id" required:"true" doc:"ID of the employee receiving the sticker"`
-	StickerTypeID uuid.UUID `json:"sticker_type_id" required:"true" doc:"ID of the sticker type"`
-	Message       string    `json:"message" maxLength:"255" doc:"Optional message with the sticker"`
+	ReceiverEmail        string    `json:"receiver_email" doc:"Email of the employee receiving the sticker (use either email or employee_code)"`
+	ReceiverEmployeeCode string    `json:"receiver_employee_code" doc:"Employee code of the receiver (use either email or employee_code)"`
+	StickerTypeID        uuid.UUID `json:"sticker_type_id" required:"true" doc:"ID of the sticker type"`
+	Message              string    `json:"message" maxLength:"255" doc:"Optional message with the sticker"`
 }
 
 type GetLeaderboardRequest struct {
@@ -37,10 +38,15 @@ type PointBalanceResponse struct {
 }
 
 type LeaderboardResult struct {
-	EmployeeID uuid.UUID `json:"employee_id"`
-	FullName   string    `json:"full_name"`
-	Total      int       `json:"total"`
-	Department string    `json:"department"`
+	EmployeeID   uuid.UUID `json:"employee_id"`
+	EmployeeCode string    `json:"employee_code"`
+	FullName     string    `json:"full_name"`
+	Email        string    `json:"email"`
+	Position     string    `json:"position"`
+	AvatarURL    string    `json:"avatar_url,omitempty"`
+	Total        int       `json:"total"`
+	Department   string    `json:"department"`
+	DepartmentID uuid.UUID `json:"department_id,omitempty"`
 }
 
 type LeaderboardResponse struct {

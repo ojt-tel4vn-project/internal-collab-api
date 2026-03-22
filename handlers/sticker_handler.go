@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ojt-tel4vn-project/internal-collab-api/dtos/sticker"
 	"github.com/ojt-tel4vn-project/internal-collab-api/middleware"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
 	"github.com/ojt-tel4vn-project/internal-collab-api/services"
@@ -142,7 +143,29 @@ func (h *StickerHandler) handleSendSticker(ctx context.Context, input *struct {
 
 	senderID := claims.UserID
 
-	err = h.service.SendSticker(senderID, input.Body.ReceiverID, input.Body.StickerTypeID, input.Body.Message)
+	// Find receiver by email or employee code
+	if input.Body.ReceiverEmail == "" && input.Body.ReceiverEmployeeCode == "" {
+		return nil, huma.Error400BadRequest("Either receiver_email or receiver_employee_code is required")
+	}
+
+	var receiver *models.Employee
+	if input.Body.ReceiverEmail != "" {
+		receiver, err = h.employeeRepo.FindByEmail(input.Body.ReceiverEmail)
+		if err != nil {
+			return nil, huma.Error404NotFound("Receiver not found with provided email")
+		}
+	} else {
+		receiver, err = h.employeeRepo.FindByEmployeeCode(input.Body.ReceiverEmployeeCode)
+		if err != nil {
+			return nil, huma.Error404NotFound("Receiver not found with provided employee code")
+		}
+	}
+
+	if receiver == nil {
+		return nil, huma.Error404NotFound("Receiver not found")
+	}
+
+	err = h.service.SendSticker(senderID, receiver.ID, input.Body.StickerTypeID, input.Body.Message)
 	if err != nil {
 		switch err {
 		case services.ErrSendToYourself:

@@ -28,10 +28,15 @@ type LeaderboardFilter struct {
 }
 
 type LeaderboardResult struct {
-	EmployeeID uuid.UUID `gorm:"column:employee_id" json:"employee_id"`
-	FullName   string    `gorm:"->;column:full_name" json:"full_name"`
-	Total      int       `gorm:"column:total" json:"total"`
-	Department string    `gorm:"column:department_name" json:"department"`
+	EmployeeID   uuid.UUID `gorm:"column:employee_id" json:"employee_id"`
+	EmployeeCode string    `gorm:"column:employee_code" json:"employee_code"`
+	FullName     string    `gorm:"->;column:full_name" json:"full_name"`
+	Email        string    `gorm:"column:email" json:"email"`
+	Position     string    `gorm:"column:position" json:"position"`
+	AvatarURL    string    `gorm:"column:avatar_url" json:"avatar_url"`
+	Total        int       `gorm:"column:total" json:"total"`
+	Department   string    `gorm:"column:department_name" json:"department"`
+	DepartmentID uuid.UUID `gorm:"column:department_id" json:"department_id"`
 }
 
 type stickerRepositoryImpl struct {
@@ -101,22 +106,28 @@ func (r *stickerRepositoryImpl) CreateStickerTransaction(tx *models.StickerTrans
 func (r *stickerRepositoryImpl) GetLeaderboard(filter LeaderboardFilter) ([]LeaderboardResult, error) {
 	var results []LeaderboardResult
 	query := r.db.
-		Table("sticker_transactions as st").
+		Table("employees as e").
 		Select(`
-			st.receiver_id as employee_id,
+			e.id as employee_id,
+			e.employee_code,
 			e.full_name,
+			e.email,
+			e.position,
+			e.avatar_url,
+			d.id as department_id,
 			d.name as department_name,
-			count(*) as total
+			COALESCE(COUNT(st.id), 0) as total
 		`).
-		Joins("JOIN employees as e ON e.id = st.receiver_id").
-		Joins("LEFT JOIN departments as d ON d.id = e.department_id")
+		Joins("LEFT JOIN departments as d ON d.id = e.department_id").
+		Joins("LEFT JOIN sticker_transactions as st ON st.receiver_id = e.id").
+		Where("e.status = ?", "active")
 
-	// Filter by time range
+	// Filter sticker transactions by time range if provided
 	if filter.StartDate != nil {
-		query = query.Where("st.created_at >= ?", *filter.StartDate)
+		query = query.Where("(st.created_at >= ? OR st.created_at IS NULL)", *filter.StartDate)
 	}
 	if filter.EndDate != nil {
-		query = query.Where("st.created_at <= ?", filter.EndDate.Add(24*time.Hour)) // include the end date
+		query = query.Where("(st.created_at <= ? OR st.created_at IS NULL)", filter.EndDate.Add(24*time.Hour))
 	}
 
 	// Filter by department
@@ -129,8 +140,8 @@ func (r *stickerRepositoryImpl) GetLeaderboard(filter LeaderboardFilter) ([]Lead
 	}
 
 	err := query.
-		Group("st.receiver_id, e.full_name, d.name").
-		Order("total DESC").
+		Group("e.id, e.employee_code, e.full_name, e.email, e.position, e.avatar_url, d.id, d.name").
+		Order("total DESC, e.full_name ASC").
 		Limit(filter.Limit).
 		Scan(&results).Error
 
