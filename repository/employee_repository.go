@@ -11,6 +11,7 @@ type EmployeeRepository interface {
 	FindByEmail(email string) (*models.Employee, error)
 	FindByEmployeeCode(code string) (*models.Employee, error)
 	FindByPasswordResetToken(token string) (*models.Employee, error)
+	FindByStatus(status models.Status) ([]models.Employee, error)
 	FindEmployeesByBirthday(month, day int) ([]models.Employee, error)
 	FindSubordinates(managerID uuid.UUID) ([]models.Employee, error)
 	FindAllBirthdays() ([]models.Employee, error)
@@ -48,7 +49,13 @@ func (r *employeeRepository) FindByID(id uuid.UUID) (*models.Employee, error) {
 func (r *employeeRepository) FindByEmail(email string) (*models.Employee, error) {
 	var employee models.Employee
 	err := r.db.Preload("Role").Preload("Department").Where("email = ?", email).First(&employee).Error
-	return &employee, err
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &employee, nil
 }
 
 func (r *employeeRepository) FindByEmployeeCode(code string) (*models.Employee, error) {
@@ -63,7 +70,24 @@ func (r *employeeRepository) FindByEmployeeCode(code string) (*models.Employee, 
 func (r *employeeRepository) FindByPasswordResetToken(token string) (*models.Employee, error) {
 	var employee models.Employee
 	err := r.db.Preload("Role").Preload("Department").Where("password_reset_token = ?", token).First(&employee).Error
-	return &employee, err
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &employee, nil
+}
+
+func (r *employeeRepository) FindByStatus(status models.Status) ([]models.Employee, error) {
+	var employees []models.Employee
+	err := r.db.
+		Preload("Role").
+		Preload("Department").
+		Where("status = ?", status).
+		Order("full_name ASC").
+		Find(&employees).Error
+	return employees, err
 }
 
 func (r *employeeRepository) FindEmployeesByBirthday(month, day int) ([]models.Employee, error) {
@@ -97,7 +121,13 @@ func (r *employeeRepository) FindSubordinates(managerID uuid.UUID) ([]models.Emp
 func (r *employeeRepository) FindRoleByName(name string) (*models.Role, error) {
 	var role models.Role
 	err := r.db.Where("name = ?", name).First(&role).Error
-	return &role, err
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &role, nil
 }
 
 func (r *employeeRepository) SearchEmployees(query string) ([]models.Employee, error) {

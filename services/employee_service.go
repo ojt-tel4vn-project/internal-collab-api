@@ -25,7 +25,9 @@ import (
 
 type EmployeeService interface {
 	CreateEmployee(req *employee.CreateEmployeeRequest) (*employee.CreateEmployeeResponse, error)
-	GetAllEmployees() (*employee.ListEmployeesResponse, error)
+	GetAllEmployees(requesterRole string) (*employee.ListEmployeesResponse, error)
+	GetEmployeesByStatus(status models.Status) (*employee.ListEmployeesResponse, error)
+	ApproveEmployee(id uuid.UUID) error
 	GetEmployeeByID(id uuid.UUID) (*employee.GetEmployeeResponse, error)
 	GetProfile(id uuid.UUID) (*employee.GetEmployeeResponse, error)
 	UpdateEmployee(id uuid.UUID, req *employee.UpdateEmployeeRequest) (*employee.UpdateEmployeeResponse, error)
@@ -194,14 +196,59 @@ func (s *employeeServiceImpl) CreateEmployee(req *employee.CreateEmployeeRequest
 	}, nil
 }
 
-func (s *employeeServiceImpl) GetAllEmployees() (*employee.ListEmployeesResponse, error) {
-	employees, err := s.repo.FindAll()
+func (s *employeeServiceImpl) GetAllEmployees(requesterRole string) (*employee.ListEmployeesResponse, error) {
+	var employees []models.Employee
+	var err error
+
+	// Admin sees all, others see only active
+	if requesterRole == "admin" {
+		employees, err = s.repo.FindAll()
+	} else {
+		employees, err = s.repo.FindByStatus(models.StatusActive)
+	}
+
 	if err != nil {
 		logger.Error("GetAllEmployees failed", zap.Error(err))
 		return nil, response.InternalServerError("Failed to fetch employees")
 	}
 
-	// Convert to summary
+	return s.convertToListResponse(employees), nil
+}
+
+func (s *employeeServiceImpl) GetEmployeesByStatus(status models.Status) (*employee.ListEmployeesResponse, error) {
+	employees, err := s.repo.FindByStatus(status)
+	if err != nil {
+		logger.Error("GetEmployeesByStatus failed", zap.Error(err), zap.String("status", string(status)))
+		return nil, response.InternalServerError("Failed to fetch employees")
+	}
+
+	return s.convertToListResponse(employees), nil
+}
+
+func (s *employeeServiceImpl) ApproveEmployee(id uuid.UUID) error {
+	emp, err := s.repo.FindByID(id)
+	if err != nil {
+		logger.Warn("ApproveEmployee failed: employee not found", zap.String("id", id.String()))
+		return response.NotFound("Employee not found")
+	}
+
+	if emp.Status != models.StatusPending {
+		return response.BadRequest("Employee is not in pending status")
+	}
+
+	emp.Status = models.StatusActive
+	if err := s.repo.Update(emp); err != nil {
+		logger.Error("Failed to approve employee", zap.Error(err), zap.String("id", id.String()))
+		return response.InternalServerError("Failed to approve employee")
+	}
+
+	// TODO: Send welcome email
+	logger.Info("Employee approved", zap.String("id", id.String()), zap.String("email", emp.Email))
+	return nil
+}
+
+// Helper function to convert employees to list response
+func (s *employeeServiceImpl) convertToListResponse(employees []models.Employee) *employee.ListEmployeesResponse {
 	summaries := make([]employee.EmployeeSummary, len(employees))
 	for i, emp := range employees {
 		var deptBrief *employee.DepartmentBrief
@@ -236,7 +283,7 @@ func (s *employeeServiceImpl) GetAllEmployees() (*employee.ListEmployeesResponse
 	return &employee.ListEmployeesResponse{
 		Employees: summaries,
 		Total:     len(summaries),
-	}, nil
+	}
 }
 
 func (s *employeeServiceImpl) GetEmployeeByID(id uuid.UUID) (*employee.GetEmployeeResponse, error) {

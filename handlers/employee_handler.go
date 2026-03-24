@@ -9,6 +9,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 	"github.com/ojt-tel4vn-project/internal-collab-api/dtos/employee"
+	"github.com/ojt-tel4vn-project/internal-collab-api/models"
 	authPkg "github.com/ojt-tel4vn-project/internal-collab-api/pkg/auth"
 	"github.com/ojt-tel4vn-project/internal-collab-api/pkg/crypto"
 	"github.com/ojt-tel4vn-project/internal-collab-api/repository"
@@ -46,12 +47,34 @@ func (h *EmployeeHandler) RegisterRoutes(api huma.API) {
 		OperationID: "get-employees",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/hr/employees",
-		Summary:     "Get all employees (HR only)",
+		Summary:     "Get all employees (HR sees active, Admin sees all)",
 		Tags:        []string{"Employees"},
 		Security: []map[string][]string{
 			{"bearerAuth": {}},
 		},
 	}, h.GetAllEmployees)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-pending-employees",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/hr/employees/pending",
+		Summary:     "Get pending employees (Admin only)",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.GetPendingEmployees)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "approve-employee",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/hr/employees/{id}/approve",
+		Summary:     "Approve pending employee (Admin only)",
+		Tags:        []string{"Employees"},
+		Security: []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}, h.ApproveEmployee)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-employee-by-id",
@@ -258,8 +281,8 @@ func (h *EmployeeHandler) GetAllEmployees(ctx context.Context, input *struct {
 }) (*struct {
 	Body employee.ListEmployeesResponse
 }, error) {
-	// Validate HR access
-	_, err := authPkg.Authorize(
+	// Validate HR or Admin access
+	claims, err := authPkg.Authorize(
 		input.Authorization,
 		h.jwtService,
 		h.employeeRepo,
@@ -271,13 +294,92 @@ func (h *EmployeeHandler) GetAllEmployees(ctx context.Context, input *struct {
 		return nil, err
 	}
 
-	resp, err := h.service.GetAllEmployees()
+	// Get employee to check role
+	emp, err := h.employeeRepo.FindByID(claims.UserID)
+	if err != nil || emp == nil || emp.Role == nil {
+		return nil, huma.Error403Forbidden("Unable to determine user role")
+	}
+
+	// Pass role to service - Admin sees all, HR sees only active
+	resp, err := h.service.GetAllEmployees(emp.Role.Name)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to fetch employees", err)
 	}
 	return &struct {
 		Body employee.ListEmployeesResponse
 	}{Body: *resp}, nil
+}
+
+func (h *EmployeeHandler) GetPendingEmployees(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+}) (*struct {
+	Body employee.ListEmployeesResponse
+}, error) {
+	// Validate Admin access only
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			Roles: []string{"admin"},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := h.service.GetEmployeesByStatus(models.StatusPending)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to fetch pending employees", err)
+	}
+	return &struct {
+		Body employee.ListEmployeesResponse
+	}{Body: *resp}, nil
+}
+
+func (h *EmployeeHandler) ApproveEmployee(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true" doc:"Bearer token"`
+	ID            string `path:"id"`
+}) (*struct {
+	Body struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+}, error) {
+	// Validate Admin access only
+	_, err := authPkg.Authorize(
+		input.Authorization,
+		h.jwtService,
+		h.employeeRepo,
+		authPkg.AuthOptions{
+			Roles: []string{"admin"},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := uuid.Parse(input.ID)
+	if err != nil {
+		return nil, huma.Error400BadRequest("Invalid employee ID format")
+	}
+
+	if err := h.service.ApproveEmployee(id); err != nil {
+		return nil, huma.Error500InternalServerError("Failed to approve employee", err)
+	}
+
+	return &struct {
+		Body struct {
+			Success bool   `json:"success"`
+			Message string `json:"message"`
+		}
+	}{Body: struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}{
+		Success: true,
+		Message: "Employee approved successfully",
+	}}, nil
 }
 
 func (h *EmployeeHandler) GetEmployeeByID(ctx context.Context, input *struct {

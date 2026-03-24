@@ -34,11 +34,23 @@ func (r *departmentRepository) FindAll() ([]models.Department, error) {
 func (r *departmentRepository) FindByID(id uuid.UUID) (*models.Department, error) {
 	var dept models.Department
 	err := r.db.Where("id = ?", id).First(&dept).Error
-	return &dept, err
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil // Not found, return nil without error
+		}
+		return nil, err // Other errors
+	}
+	return &dept, nil
 }
 
 func (r *departmentRepository) FindByName(name string) (*models.Department, error) {
 	var dept models.Department
 	err := r.db.Where("name = ?", name).First(&dept).Error
-	return &dept, err
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil // Not found, return nil without error
+		}
+		return nil, err // Other errors
+	}
+	return &dept, nil
 }
