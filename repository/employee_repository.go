@@ -31,11 +31,11 @@ func NewEmployeeRepository(db *gorm.DB) EmployeeRepository {
 	}
 }
 
-// FindAll overrides BaseRepository to preload Role and Department, only returns active employees
+// FindAll overrides BaseRepository to preload Role and Department, returns all employees
 func (r *employeeRepository) FindAll() ([]models.Employee, error) {
 	var employees []models.Employee
 	err := r.db.Preload("Role").Preload("Department").
-		Where("status = ?", models.StatusActive).
+		Order("full_name ASC").
 		Find(&employees).Error
 	return employees, err
 }

@@ -200,8 +200,8 @@ func (s *employeeServiceImpl) GetAllEmployees(requesterRole string) (*employee.L
 	var employees []models.Employee
 	var err error
 
-	// Admin sees all, others see only active
-	if requesterRole == "admin" {
+	// Admin and HR see all, others see only active
+	if requesterRole == "admin" || requesterRole == "hr" {
 		employees, err = s.repo.FindAll()
 	} else {
 		employees, err = s.repo.FindByStatus(models.StatusActive)
