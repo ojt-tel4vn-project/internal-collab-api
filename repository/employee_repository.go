@@ -50,9 +50,6 @@ func (r *employeeRepository) FindByEmail(email string) (*models.Employee, error)
 	var employee models.Employee
 	err := r.db.Preload("Role").Preload("Department").Where("email = ?", email).First(&employee).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, nil
-		}
 		return nil, err
 	}
 	return &employee, nil
@@ -71,9 +68,6 @@ func (r *employeeRepository) FindByPasswordResetToken(token string) (*models.Emp
 	var employee models.Employee
 	err := r.db.Preload("Role").Preload("Department").Where("password_reset_token = ?", token).First(&employee).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, nil
-		}
 		return nil, err
 	}
 	return &employee, nil
@@ -122,9 +116,6 @@ func (r *employeeRepository) FindRoleByName(name string) (*models.Role, error) {
 	var role models.Role
 	err := r.db.Where("name = ?", name).First(&role).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, nil
-		}
 		return nil, err
 	}
 	return &role, nil
