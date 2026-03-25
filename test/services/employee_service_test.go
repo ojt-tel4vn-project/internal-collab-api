@@ -44,6 +44,7 @@ func TestCreateEmployee_Success(t *testing.T) {
 	req := sampleCreateRequest()
 
 	empRepo.On("FindByEmail", req.Email).Return(nil, errors.New("not found")) // email not taken
+	empRepo.On("FindRoleByName", "employee").Return(&models.Role{ID: uuid.New(), Name: "employee"}, nil)
 	pw.On("HashPassword", mock.AnythingOfType("string")).Return("$2a$10$hashedtemp", nil)
 	empRepo.On("Create", mock.AnythingOfType("*models.Employee")).Return(nil)
 	email.On("SendWelcomeEmail", req.Email, mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil)
@@ -87,6 +88,7 @@ func TestCreateEmployee_InvalidDateOfBirth(t *testing.T) {
 	req.DateOfBirth = "not-a-date"
 
 	empRepo.On("FindByEmail", req.Email).Return(nil, errors.New("not found"))
+	empRepo.On("FindRoleByName", "employee").Return(&models.Role{ID: uuid.New(), Name: "employee"}, nil)
 	pw.On("HashPassword", mock.AnythingOfType("string")).Return("$2a$10$hashedtemp", nil)
 
 	svc := newEmployeeService(empRepo, pw, email)
@@ -106,6 +108,7 @@ func TestCreateEmployee_EmailFailShouldNotFail(t *testing.T) {
 	req := sampleCreateRequest()
 
 	empRepo.On("FindByEmail", req.Email).Return(nil, errors.New("not found"))
+	empRepo.On("FindRoleByName", "employee").Return(&models.Role{ID: uuid.New(), Name: "employee"}, nil)
 	pw.On("HashPassword", mock.AnythingOfType("string")).Return("$2a$10$hashedtemp", nil)
 	empRepo.On("Create", mock.AnythingOfType("*models.Employee")).Return(nil)
 	emailSvc.On("SendWelcomeEmail", req.Email, mock.AnythingOfType("string"), mock.AnythingOfType("string")).
@@ -134,7 +137,7 @@ func TestGetAllEmployees_Success(t *testing.T) {
 	empRepo.On("FindAll").Return(employees, nil)
 
 	svc := newEmployeeService(empRepo, pw, email)
-	resp, err := svc.GetAllEmployees()
+	resp, err := svc.GetAllEmployees("admin")
 
 	assert.NoError(t, err)
 	assert.Len(t, resp.Employees, 2)
@@ -149,7 +152,7 @@ func TestGetAllEmployees_Empty(t *testing.T) {
 	empRepo.On("FindAll").Return([]models.Employee{}, nil)
 
 	svc := newEmployeeService(empRepo, pw, email)
-	resp, err := svc.GetAllEmployees()
+	resp, err := svc.GetAllEmployees("admin")
 
 	assert.NoError(t, err)
 	assert.Len(t, resp.Employees, 0)
@@ -211,7 +214,7 @@ func TestDeleteEmployee_Success(t *testing.T) {
 
 	emp := &models.Employee{ID: uuid.New(), Status: models.StatusActive}
 	empRepo.On("FindByID", emp.ID).Return(emp, nil)
-	empRepo.On("Delete", emp.ID).Return(nil)
+	empRepo.On("Update", mock.AnythingOfType("*models.Employee")).Return(nil)
 
 	svc := newEmployeeService(empRepo, pw, email)
 	err := svc.DeleteEmployee(emp.ID)

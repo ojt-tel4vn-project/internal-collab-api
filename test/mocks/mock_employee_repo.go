@@ -76,3 +76,21 @@ func (m *MockEmployeeRepository) FindAllBirthdays() ([]models.Employee, error) {
 	args := m.Called()
 	return args.Get(0).([]models.Employee), args.Error(1)
 }
+
+func (m *MockEmployeeRepository) FindByStatus(status models.Status) ([]models.Employee, error) {
+	args := m.Called(status)
+	return args.Get(0).([]models.Employee), args.Error(1)
+}
+
+func (m *MockEmployeeRepository) FindRoleByName(name string) (*models.Role, error) {
+	args := m.Called(name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Role), args.Error(1)
+}
+
+func (m *MockEmployeeRepository) SearchEmployees(query string) ([]models.Employee, error) {
+	args := m.Called(query)
+	return args.Get(0).([]models.Employee), args.Error(1)
+}

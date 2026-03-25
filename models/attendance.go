@@ -44,7 +44,7 @@ type Attendance struct {
 	Employee         *Employee        `gorm:"foreignKey:EmployeeID" json:"employee,omitempty"`
 	Month            int32            `gorm:"type:integer;not null;uniqueIndex:unique_employee_month" json:"month"`
 	Year             int32            `gorm:"type:integer;not null;uniqueIndex:unique_employee_month" json:"year"`
-	AttendanceData   AttendanceData   `gorm:"type:jsonb;not null;default:'{}'" json:"attendance_data"`
+	AttendanceData   AttendanceData   `gorm:"type:jsonb;not null;default:'{}';serializer:json" json:"attendance_data"`
 	TotalDaysPresent int32            `gorm:"type:integer;default:0" json:"total_days_present"`
 	TotalDaysAbsent  int32            `gorm:"type:integer;default:0" json:"total_days_absent"`
 	TotalDaysLate    int32            `gorm:"type:integer;default:0" json:"total_days_late"`
