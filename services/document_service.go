@@ -217,7 +217,7 @@ func (s *documentServiceImpl) ValidateCreateRequest(title, categoryIDStr, roles,
 
 // HasPermission checks if a user with the given role can access a document
 func (s *documentServiceImpl) HasPermission(docRoles, userRole string) bool {
-	if userRole == "admin" {
+	if userRole == "admin" || userRole == "hr" {
 		return true
 	}
 

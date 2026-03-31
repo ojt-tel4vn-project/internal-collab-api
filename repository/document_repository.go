@@ -36,8 +36,8 @@ func (r *documentRepositoryImpl) FindByRole(role string) ([]models.Document, err
 	var documents []models.Document
 	query := r.db.Order("created_at desc")
 
-	// 'admin' can see everything. Others only see if their role is in the list
-	if role != "admin" {
+	// 'admin' and 'hr' can see everything. Others only see if their role is in the list
+	if role != "admin" && role != "hr" {
 		query = query.Where("roles = 'all' OR roles LIKE ?", "%"+role+"%")
 	}
 
