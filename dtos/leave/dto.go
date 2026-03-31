@@ -83,6 +83,7 @@ type LeaveRequestResponse struct {
 	Reason             string                    `json:"reason"`
 	ContactDuringLeave string                    `json:"contact_during_leave"`
 	Status             models.LeaveRequestStatus `json:"status"`
+	IsOverdue          bool                      `json:"is_overdue"`
 	Approver           *EmployeeResponse         `json:"approver,omitempty"`
 	ApproverComment    string                    `json:"approver_comment,omitempty"`
 	SubmittedAt        time.Time                 `json:"submitted_at"`

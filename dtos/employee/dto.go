@@ -8,11 +8,11 @@ import (
 
 // Create Employee DTOs (HR only)
 type CreateEmployeeRequest struct {
-	Email        string     `json:"email" binding:"required,email"`
+	Email        string     `json:"email" binding:"required,email" format:"email" doc:"Valid employee email address" example:"john.doe@example.com"`
 	FirstName    string     `json:"first_name" binding:"required"`
 	LastName     string     `json:"last_name" binding:"required"`
 	DateOfBirth  string     `json:"date_of_birth" binding:"required"` // Format: YYYY-MM-DD
-	Phone        string     `json:"phone"`
+	Phone        string     `json:"phone" pattern:"^0[0-9]{9}$" doc:"10-digit phone number starting with 0" example:"0912345678"`
 	Address      string     `json:"address"`
 	DepartmentID *uuid.UUID `json:"department_id"`
 	Position     string     `json:"position" binding:"required"`
@@ -41,7 +41,7 @@ type UpdateEmployeeRequest struct {
 	FirstName    *string    `json:"first_name"`
 	LastName     *string    `json:"last_name"`
 	DateOfBirth  *string    `json:"date_of_birth"` // Format: YYYY-MM-DD
-	Phone        *string    `json:"phone"`
+	Phone        *string    `json:"phone" pattern:"^0[0-9]{9}$" doc:"10-digit phone number starting with 0" example:"0912345678"`
 	Address      *string    `json:"address"`
 	DepartmentID *uuid.UUID `json:"department_id"`
 	Position     *string    `json:"position"`
@@ -65,7 +65,7 @@ type UpdateEmployeeResponse struct {
 
 // Update Profile DTOs (Self-Service)
 type UpdateProfileRequest struct {
-	Phone     *string `json:"phone"`
+	Phone     *string `json:"phone" pattern:"^0[0-9]{9}$" doc:"10-digit phone number starting with 0" example:"0912345678"`
 	Address   *string `json:"address"`
 	AvatarUrl *string `json:"avatar_url"`
 }

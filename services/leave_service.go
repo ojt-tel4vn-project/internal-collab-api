@@ -2,7 +2,6 @@ package services
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -108,9 +107,20 @@ func (s *leaveService) CreateLeaveRequest(employeeID uuid.UUID, req leave.Create
 	if err != nil {
 		return nil, nil, errors.New("invalid from_date format")
 	}
+
+	todayStr := time.Now().Format("2006-01-02")
+	today, _ := time.Parse("2006-01-02", todayStr)
+	if fromDate.Before(today) {
+		return nil, nil, errors.New("Leave start date cannot be in the past")
+	}
+
 	toDate, err := time.Parse("2006-01-02", req.ToDate)
 	if err != nil {
 		return nil, nil, errors.New("invalid to_date format")
+	}
+
+	if toDate.Before(fromDate) {
+		return nil, nil, errors.New("Leave end date cannot be before start date")
 	}
 
 	// Calculate total days (simple calculation, real world would exclude weekends and holidays)
@@ -133,15 +143,11 @@ func (s *leaveService) CreateLeaveRequest(employeeID uuid.UUID, req leave.Create
 	}
 
 	var warning *leave.LeaveRequestWarning
-	if quota != nil {
-		if quota.RemainingDays < totalDays {
-			warning = &leave.LeaveRequestWarning{
-				Type:          "QUOTA_EXCEEDED",
-				Message:       fmt.Sprintf("This request exceeds your remaining leave quota by %.1f days", totalDays-quota.RemainingDays),
-				RemainingDays: quota.RemainingDays,
-				RequestedDays: totalDays,
-			}
-		}
+	if quota != nil && quota.RemainingDays < totalDays {
+		return nil, nil, errors.New("The number of leave days exceeds the limit prescribed for this leave type")
+	}
+	if quota == nil && totalDays > 30 {
+		return nil, nil, errors.New("The number of leave days exceeds the limit prescribed for this leave type")
 	}
 
 	actionToken := uuid.New().String()
@@ -234,6 +240,12 @@ func (s *leaveService) CancelLeaveRequest(employeeID uuid.UUID, id uuid.UUID) er
 
 	if req.Status != models.LeaveRequestStatusPending {
 		return ErrInvalidStatusTransition
+	}
+
+	todayStr := time.Now().Format("2006-01-02")
+	today, _ := time.Parse("2006-01-02", todayStr)
+	if req.FromDate.Before(today) {
+		return errors.New("Không thể hủy đơn nghỉ phép đã quá hạn")
 	}
 
 	req.Status = models.LeaveRequestStatusCanceled
@@ -368,6 +380,13 @@ func (s *leaveService) GetCompanyLeaveOverview(year, month int) (*leave.LeaveOve
 }
 
 func (s *leaveService) mapToResponse(req *models.LeaveRequest, emp *models.Employee, t *models.LeaveType, approver *models.Employee) *leave.LeaveRequestResponse {
+	todayStr := time.Now().Format("2006-01-02")
+	today, _ := time.Parse("2006-01-02", todayStr)
+	isOverdue := false
+	if req.Status == models.LeaveRequestStatusPending && req.FromDate.Before(today) {
+		isOverdue = true
+	}
+
 	res := &leave.LeaveRequestResponse{
 		ID:                 req.ID,
 		FromDate:           req.FromDate.Format("2006-01-02"),
@@ -376,6 +395,7 @@ func (s *leaveService) mapToResponse(req *models.LeaveRequest, emp *models.Emplo
 		Reason:             req.Reason,
 		ContactDuringLeave: req.ContactDuringLeave,
 		Status:             req.Status,
+		IsOverdue:          isOverdue,
 		ApproverComment:    req.ApproverComment,
 		SubmittedAt:        req.SubmittedAt,
 	}
