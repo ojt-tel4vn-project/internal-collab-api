@@ -53,7 +53,7 @@ type CreateLeaveRequest struct {
 	FromDate           string    `json:"from_date" validate:"required"` // Format: YYYY-MM-DD
 	ToDate             string    `json:"to_date" validate:"required"`   // Format: YYYY-MM-DD
 	Reason             string    `json:"reason" validate:"required"`
-	ContactDuringLeave string    `json:"contact_during_leave"`
+	ContactDuringLeave string    `json:"contact_during_leave" validate:"required" pattern:"^(0[0-9]{9}|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})$" doc:"Valid 10-digit phone number or email address" example:"0912345678"`
 }
 
 type ApproveLeaveRequest struct {

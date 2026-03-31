@@ -237,9 +237,15 @@ func (s *documentServiceImpl) HasPermission(docRoles, userRole string) bool {
 // DetectAndValidateMimeType reads file buffer and validates MIME type
 func (s *documentServiceImpl) DetectAndValidateMimeType(buffer []byte, filename string) (string, error) {
 	mimeType := http.DetectContentType(buffer)
+	ext := strings.ToLower(filepath.Ext(filename))
+
+	// DOCX files are essentially ZIP archives, so DetectContentType returns "application/zip"
+	if mimeType == "application/zip" && ext == ".docx" {
+		mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	}
 
 	if !AllowedMimeTypes[mimeType] {
-		return "", response.BadRequest("Unsupported file type")
+		return "", response.BadRequest(fmt.Sprintf("Unsupported file type: %s", mimeType))
 	}
 
 	return mimeType, nil
