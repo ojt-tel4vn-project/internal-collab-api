@@ -48,6 +48,10 @@ type UpdateLeaveQuotaRequest struct {
 	Reason    string  `json:"reason"`
 }
 
+type UpdateLeaveTypeRequest struct {
+	DefaultDays float64 `json:"total_days" validate:"required,min=0"`
+}
+
 // ========= Requests =========
 
 type CreateLeaveRequest struct {

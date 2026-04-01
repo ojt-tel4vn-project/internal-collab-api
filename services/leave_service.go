@@ -20,6 +20,7 @@ var (
 
 type LeaveService interface {
 	GetLeaveTypes() ([]leave.LeaveTypeResponse, error)
+	UpdateLeaveType(id uuid.UUID, req leave.UpdateLeaveTypeRequest) error
 	GetLeaveQuotas(employeeID uuid.UUID, year int) ([]leave.LeaveQuotaResponse, error)
 	UpdateLeaveQuota(id uuid.UUID, req leave.UpdateLeaveQuotaRequest) error
 
@@ -63,6 +64,23 @@ func (s *leaveService) GetLeaveTypes() ([]leave.LeaveTypeResponse, error) {
 		})
 	}
 	return res, nil
+}
+
+func (s *leaveService) UpdateLeaveType(id uuid.UUID, req leave.UpdateLeaveTypeRequest) error {
+	if req.DefaultDays < 0 {
+		return errors.New("total_days must be non-negative")
+	}
+
+	lt, err := s.repo.FindLeaveTypeByID(id)
+	if err != nil {
+		return err
+	}
+	if lt == nil {
+		return ErrLeaveTypeNotFound
+	}
+
+	lt.DefaultDays = req.DefaultDays
+	return s.repo.UpdateLeaveType(lt)
 }
 
 func (s *leaveService) GetLeaveQuotas(employeeID uuid.UUID, year int) ([]leave.LeaveQuotaResponse, error) {

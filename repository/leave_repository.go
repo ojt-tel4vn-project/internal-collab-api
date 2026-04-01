@@ -13,6 +13,7 @@ type LeaveRepository interface {
 	CreateLeaveType(t *models.LeaveType) error
 	FindLeaveTypes() ([]models.LeaveType, error)
 	FindLeaveTypeByID(id uuid.UUID) (*models.LeaveType, error)
+	UpdateLeaveType(t *models.LeaveType) error
 
 	// Leave Quotas
 	CreateLeaveQuota(q *models.LeaveQuota) error
@@ -74,6 +75,10 @@ func (r *leaveRepository) FindLeaveTypeByID(id uuid.UUID) (*models.LeaveType, er
 		return nil, err
 	}
 	return &t, nil
+}
+
+func (r *leaveRepository) UpdateLeaveType(t *models.LeaveType) error {
+	return r.db.Save(t).Error
 }
 
 // --- Leave Quotas ---

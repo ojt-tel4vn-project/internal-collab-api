@@ -29,6 +29,11 @@ func (m *MockLeaveRepository) FindLeaveTypeByID(id uuid.UUID) (*models.LeaveType
 	return args.Get(0).(*models.LeaveType), args.Error(1)
 }
 
+func (m *MockLeaveRepository) UpdateLeaveType(t *models.LeaveType) error {
+	args := m.Called(t)
+	return args.Error(0)
+}
+
 func (m *MockLeaveRepository) CreateLeaveQuota(q *models.LeaveQuota) error {
 	args := m.Called(q)
 	return args.Error(0)

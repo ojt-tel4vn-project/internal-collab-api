@@ -42,6 +42,16 @@ func (h *LeaveHandler) RegisterRoutes(api huma.API) {
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.handleGetLeaveTypes)
 
+	// Update Leave Type (HR only)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-leave-type",
+		Method:      http.MethodPut,
+		Path:        "/api/v1/leave-types/{id}",
+		Summary:     "Update Leave Type (HR only)",
+		Tags:        []string{"Leave"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.handleUpdateLeaveType)
+
 	// Get Leave Quotas
 	huma.Register(api, huma.Operation{
 		OperationID: "get-leave-quotas",
@@ -148,6 +158,31 @@ func (h *LeaveHandler) handleGetLeaveTypes(ctx context.Context, input *struct {
 	res := &leave.LeaveTypeListResponse{}
 	res.Body.Data = types
 	return res, nil
+}
+
+func (h *LeaveHandler) handleUpdateLeaveType(ctx context.Context, input *struct {
+	Authorization string                       `header:"Authorization" required:"true"`
+	ID            uuid.UUID                    `path:"id"`
+	Body          leave.UpdateLeaveTypeRequest `body:""`
+}) (*struct{}, error) {
+	claims, err := middleware.ValidateJWTFromHeader(input.Authorization, h.jwtService)
+	if err != nil {
+		return nil, huma.Error401Unauthorized(err.Error())
+	}
+
+	if roleErr := middleware.CheckUserRole(claims.UserID, h.employeeRepo, "hr", "admin"); roleErr != nil {
+		return nil, huma.Error403Forbidden("Only HR or Admin can update leave types")
+	}
+
+	err = h.service.UpdateLeaveType(input.ID, input.Body)
+	if err != nil {
+		if err == services.ErrLeaveTypeNotFound {
+			return nil, huma.Error404NotFound("Leave type not found")
+		}
+		return nil, huma.Error500InternalServerError("Failed to update leave type", err)
+	}
+
+	return nil, nil
 }
 
 func (h *LeaveHandler) handleGetLeaveQuotas(ctx context.Context, input *struct {
