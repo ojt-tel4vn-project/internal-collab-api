@@ -144,7 +144,7 @@ func main() {
 	// Setup Rate Limiter (In-Memory)
 	store := ratelimit.InMemoryStore(&ratelimit.InMemoryOptions{
 		Rate:  time.Minute,
-		Limit: 100,
+		Limit: 300,
 	})
 	mw := ratelimit.RateLimiter(store, &ratelimit.Options{
 		ErrorHandler: func(c *gin.Context, info ratelimit.Info) {
