@@ -152,7 +152,8 @@ func (h *LeaveHandler) handleGetLeaveTypes(ctx context.Context, input *struct {
 
 func (h *LeaveHandler) handleGetLeaveQuotas(ctx context.Context, input *struct {
 	Authorization string `header:"Authorization" required:"true"`
-	Year          int    `query:"year" minimum:"2000" maximum:"2100"`
+	Year          int    `query:"year"`
+	EmployeeID    string `query:"employee_id"`
 }) (*struct {
 	Body struct {
 		Data []leave.LeaveQuotaResponse `json:"data"`
@@ -162,14 +163,26 @@ func (h *LeaveHandler) handleGetLeaveQuotas(ctx context.Context, input *struct {
 	if err != nil {
 		return nil, huma.Error401Unauthorized("Missing authentication")
 	}
-	employeeID := claims.UserID
+	
+	targetEmployeeID := claims.UserID
+
+	// If employee_id is explicitly provided, check if user has permission to view it (HR/Admin)
+	if input.EmployeeID != "" && input.EmployeeID != claims.UserID.String() {
+		if roleErr := middleware.CheckUserRole(claims.UserID, h.employeeRepo, "hr", "admin"); roleErr != nil {
+			return nil, huma.Error403Forbidden("Only HR or Admin can view other employees' quotas")
+		}
+		parsedID, err := uuid.Parse(input.EmployeeID)
+		if err == nil {
+			targetEmployeeID = parsedID
+		}
+	}
 
 	year := input.Year
 	if year == 0 {
 		year = time.Now().Year()
 	}
 
-	quotas, err := h.service.GetLeaveQuotas(employeeID, year)
+	quotas, err := h.service.GetLeaveQuotas(targetEmployeeID, year)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to fetch leave quotas", err)
 	}
