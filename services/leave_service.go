@@ -116,8 +116,9 @@ func (s *leaveService) CreateLeaveRequest(employeeID uuid.UUID, req leave.Create
 
 	todayStr := time.Now().Format("2006-01-02")
 	today, _ := time.Parse("2006-01-02", todayStr)
-	if fromDate.Before(today) {
-		return nil, nil, errors.New("Leave start date cannot be in the past")
+	// Block past dates AND same-day leave (must request at least 1 day in advance)
+	if !fromDate.After(today) {
+		return nil, nil, errors.New("Leave start date cannot be in the past or on the same day")
 	}
 
 	toDate, err := time.Parse("2006-01-02", req.ToDate)
