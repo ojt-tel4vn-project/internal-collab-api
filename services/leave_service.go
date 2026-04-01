@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,13 +39,15 @@ type leaveService struct {
 	repo         repository.LeaveRepository
 	employeeRepo repository.EmployeeRepository
 	jwtService   crypto.JWTService
+	notifService NotificationService
 }
 
-func NewLeaveService(repo repository.LeaveRepository, employeeRepo repository.EmployeeRepository, jwtService crypto.JWTService) LeaveService {
+func NewLeaveService(repo repository.LeaveRepository, employeeRepo repository.EmployeeRepository, jwtService crypto.JWTService, notifService NotificationService) LeaveService {
 	return &leaveService{
 		repo:         repo,
 		employeeRepo: employeeRepo,
 		jwtService:   jwtService,
+		notifService: notifService,
 	}
 }
 
@@ -195,7 +198,13 @@ func (s *leaveService) CreateLeaveRequest(employeeID uuid.UUID, req leave.Create
 		return nil, nil, err
 	}
 
-	// In real world, send email to Manager here
+	// Send in-app notification to Manager
+	if s.notifService != nil && emp.ManagerID != nil {
+		title := "Yêu cầu nghỉ phép mới"
+		message := fmt.Sprintf("%s vừa xin nghỉ phép %.1f ngày (%s)", emp.FullName, totalDays, leaveType.Name)
+		entityType := "leave_request"
+		_ = s.notifService.SendNotification(*emp.ManagerID, "leave", title, message, &entityType, &newReq.ID, models.PriorityHigh)
+	}
 
 	res := s.mapToResponse(newReq, emp, leaveType, nil)
 	return res, warning, nil
@@ -231,7 +240,7 @@ func (s *leaveService) ApproveLeaveRequest(managerID uuid.UUID, id uuid.UUID, ac
 	req.ApproverComment = comment
 
 	// Use transaction
-	return s.repo.Transaction(func(txRepo repository.LeaveRepository) error {
+	txErr := s.repo.Transaction(func(txRepo repository.LeaveRepository) error {
 		if err := txRepo.UpdateLeaveRequest(req); err != nil {
 			return err
 		}
@@ -252,6 +261,32 @@ func (s *leaveService) ApproveLeaveRequest(managerID uuid.UUID, id uuid.UUID, ac
 		}
 		return nil
 	})
+	if txErr != nil {
+		return txErr
+	}
+
+	// Send in-app notification to Employee about approval/rejection
+	if s.notifService != nil {
+		var title, message string
+		if status == models.LeaveRequestStatusApproved {
+			title = "Đơn nghỉ phép đã được duyệt"
+			message = fmt.Sprintf("Đơn nghỉ phép từ %s đến %s đã được quản lý phê duyệt.", req.FromDate.Format("02/01/2006"), req.ToDate.Format("02/01/2006"))
+		} else {
+			title = "Đơn nghỉ phép bị từ chối"
+			message = fmt.Sprintf("Đơn nghỉ phép từ %s đến %s đã bị từ chối.", req.FromDate.Format("02/01/2006"), req.ToDate.Format("02/01/2006"))
+			if comment != "" {
+				message += fmt.Sprintf(" Lý do: %s", comment)
+			}
+		}
+		entityType := "leave_request"
+		priority := models.PriorityNormal
+		if status == models.LeaveRequestStatusRejected {
+			priority = models.PriorityHigh
+		}
+		_ = s.notifService.SendNotification(req.EmployeeID, "leave", title, message, &entityType, &req.ID, priority)
+	}
+
+	return nil
 }
 
 func (s *leaveService) CancelLeaveRequest(employeeID uuid.UUID, id uuid.UUID) error {
@@ -302,7 +337,7 @@ func (s *leaveService) EmailActionLeaveRequest(token string, action string) erro
 	// Invalidate token
 	req.ActionToken = nil
 
-	return s.repo.Transaction(func(txRepo repository.LeaveRepository) error {
+	txErr := s.repo.Transaction(func(txRepo repository.LeaveRepository) error {
 		if err := txRepo.UpdateLeaveRequest(req); err != nil {
 			return err
 		}
@@ -322,6 +357,29 @@ func (s *leaveService) EmailActionLeaveRequest(token string, action string) erro
 		}
 		return nil
 	})
+	if txErr != nil {
+		return txErr
+	}
+
+	// Send in-app notification to Employee about email-action approval/rejection
+	if s.notifService != nil {
+		var title, message string
+		if status == models.LeaveRequestStatusApproved {
+			title = "Đơn nghỉ phép đã được duyệt"
+			message = fmt.Sprintf("Đơn nghỉ phép từ %s đến %s đã được quản lý phê duyệt.", req.FromDate.Format("02/01/2006"), req.ToDate.Format("02/01/2006"))
+		} else {
+			title = "Đơn nghỉ phép bị từ chối"
+			message = fmt.Sprintf("Đơn nghỉ phép từ %s đến %s đã bị từ chối.", req.FromDate.Format("02/01/2006"), req.ToDate.Format("02/01/2006"))
+		}
+		entityType := "leave_request"
+		priority := models.PriorityNormal
+		if status == models.LeaveRequestStatusRejected {
+			priority = models.PriorityHigh
+		}
+		_ = s.notifService.SendNotification(req.EmployeeID, "leave", title, message, &entityType, &req.ID, priority)
+	}
+
+	return nil
 }
 
 func (s *leaveService) GetMyLeaveRequests(employeeID uuid.UUID, page, limit int) ([]leave.LeaveRequestResponse, int64, error) {

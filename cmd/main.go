@@ -117,7 +117,7 @@ func main() {
 	stickerRepo := repository.NewStickerRepository(database.DB)
 	stickerService := services.NewStickerService(stickerRepo, repository.NewPointConfigRepository(database.DB), database.DB)
 
-	leaveService := services.NewLeaveService(leaveRepo, employeeRepo, jwtService)
+	leaveService := services.NewLeaveService(leaveRepo, employeeRepo, jwtService, notificationService)
 
 	attendanceRepo := repository.NewAttendanceRepository(database.DB)
 	attendanceService := services.NewAttendanceService(attendanceRepo, employeeRepo, appConfigRepo)

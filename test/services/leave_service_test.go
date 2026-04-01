@@ -17,7 +17,7 @@ import (
 // ── helpers ──────────────────────────────────────────────────
 
 func newLeaveService(leaveRepo *mocks.MockLeaveRepository, empRepo *mocks.MockEmployeeRepository, jwt *mocks.MockJWTService) services.LeaveService {
-	return services.NewLeaveService(leaveRepo, empRepo, jwt)
+	return services.NewLeaveService(leaveRepo, empRepo, jwt, nil)
 }
 
 func sampleLeaveType() *models.LeaveType {
