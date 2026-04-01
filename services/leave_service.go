@@ -72,10 +72,16 @@ func (s *leaveService) GetLeaveQuotas(employeeID uuid.UUID, year int) ([]leave.L
 
 	var res []leave.LeaveQuotaResponse
 	for _, q := range quotas {
+		typeName := ""
+		if q.LeaveType != nil {
+			typeName = q.LeaveType.Name
+		}
+		
 		res = append(res, leave.LeaveQuotaResponse{
 			ID:            q.ID,
 			EmployeeID:    q.EmployeeID,
 			LeaveTypeID:   q.LeaveTypeID,
+			LeaveTypeName: typeName,
 			Year:          q.Year,
 			TotalDays:     q.TotalDays,
 			UsedDays:      q.UsedDays,

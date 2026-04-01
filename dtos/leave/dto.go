@@ -35,6 +35,7 @@ type LeaveQuotaResponse struct {
 	ID            uuid.UUID `json:"id"`
 	EmployeeID    uuid.UUID `json:"employee_id"`
 	LeaveTypeID   uuid.UUID `json:"leave_type_id"`
+	LeaveTypeName string    `json:"leave_type_name"`
 	Year          int       `json:"year"`
 	TotalDays     float64   `json:"total_days"`
 	UsedDays      float64   `json:"used_days"`
