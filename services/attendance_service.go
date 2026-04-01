@@ -76,7 +76,12 @@ func (s *attendanceService) UploadAttendance(uploaderID uuid.UUID, month, year i
 	}
 
 	if len(records) < 2 {
-		return nil, errors.New("CSV must contain a header row and at least one data row")
+		return nil, errors.New("File CSV phải có ít nhất 1 dòng Tiêu đề và 1 dòng Dữ liệu")
+	}
+
+	header := records[0]
+	if len(header) < 8 {
+		return nil, errors.New("Sai định dạng CSV (thiếu cột). Hệ thống yêu cầu file mẫu Base.vn có tối thiểu 8 cột (Mã NV, Tên, BP, Ngày, Ca, Tình trạng, Vào, Ra)")
 	}
 
 	// Map to store attendance data by employee ID
@@ -87,7 +92,7 @@ func (s *attendanceService) UploadAttendance(uploaderID uuid.UUID, month, year i
 	// Expected format: ID Người, Tên, Bộ phận, Ngày, Thời gian biểu, Tình trạng chuyên cần, Vào, Ra
 	for i, row := range records {
 		// Skip header row and detail rows (rows starting with "Thời gian vào:")
-		if i == 0 || len(row) < 6 {
+		if i == 0 || len(row) < 8 {
 			continue
 		}
 
