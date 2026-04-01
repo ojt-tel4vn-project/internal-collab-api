@@ -18,7 +18,9 @@ import (
 
 func newEmployeeService(empRepo *mocks.MockEmployeeRepository, pw *mocks.MockPasswordService, email *mocks.MockEmailService) services.EmployeeService {
 	appCfg := &mocks.MockAppConfigRepository{}
-	return services.NewEmployeeService(empRepo, pw, email, appCfg, nil)
+	leaveRepo := &mocks.MockLeaveRepository{}
+	leaveRepo.On("FindLeaveTypes").Return([]models.LeaveType{}, nil).Maybe()
+	return services.NewEmployeeService(empRepo, pw, email, appCfg, nil, leaveRepo)
 }
 
 func sampleCreateRequest() *empdto.CreateEmployeeRequest {

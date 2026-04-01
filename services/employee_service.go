@@ -48,15 +48,17 @@ type employeeServiceImpl struct {
 	emailService email.EmailService
 	appConfig    repository.AppConfigRepository
 	storage      *storage.SupabaseStorage
+	leaveRepo    repository.LeaveRepository
 }
 
-func NewEmployeeService(repo repository.EmployeeRepository, password crypto.PasswordService, emailService email.EmailService, appConfig repository.AppConfigRepository, stor *storage.SupabaseStorage) EmployeeService {
+func NewEmployeeService(repo repository.EmployeeRepository, password crypto.PasswordService, emailService email.EmailService, appConfig repository.AppConfigRepository, stor *storage.SupabaseStorage, leaveRepo repository.LeaveRepository) EmployeeService {
 	return &employeeServiceImpl{
 		repo:         repo,
 		password:     password,
 		emailService: emailService,
 		appConfig:    appConfig,
 		storage:      stor,
+		leaveRepo:    leaveRepo,
 	}
 }
 
@@ -147,6 +149,44 @@ func (s *employeeServiceImpl) CreateEmployee(req *employee.CreateEmployeeRequest
 	if err := s.repo.Create(&newEmployee); err != nil {
 		logger.Error("CreateEmployee failed: database create error", zap.Error(err))
 		return nil, response.InternalServerError("Failed to create employee")
+	}
+
+	// Initialize default LeaveQuotas for the new employee
+	if s.leaveRepo != nil {
+		leaveTypes, err := s.leaveRepo.FindLeaveTypes()
+		if err == nil {
+			currentYear := time.Now().Year()
+			for _, lt := range leaveTypes {
+				totalDays := 0.0
+				name := strings.ToLower(lt.Name)
+				if strings.Contains(name, "annual") {
+					totalDays = 12.0
+				} else if strings.Contains(name, "sick") {
+					totalDays = 10.0
+				} else if strings.Contains(name, "compassionate") {
+					totalDays = 3.0
+				} else if strings.Contains(name, "maternity") {
+					totalDays = 180.0 // 6 months standard
+				} else if strings.Contains(name, "paternity") {
+					totalDays = 5.0
+				} else if strings.Contains(name, "unpaid") {
+					totalDays = 30.0 // standard generic limit
+				}
+
+				quota := &models.LeaveQuota{
+					EmployeeID:  newEmployee.ID,
+					LeaveTypeID: lt.ID,
+					Year:        currentYear,
+					TotalDays:   totalDays,
+					UsedDays:    0,
+				}
+				if err := s.leaveRepo.CreateLeaveQuota(quota); err != nil {
+					logger.Warn("Failed to create leave quota for new employee", zap.Error(err), zap.String("employee_id", newEmployee.ID.String()))
+				}
+			}
+		} else {
+			logger.Warn("Failed to fetch leave types to initialize quotas", zap.Error(err))
+		}
 	}
 
 	logger.Info("Employee created successfully", zap.String("employee_id", newEmployee.ID.String()))

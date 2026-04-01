@@ -3,6 +3,7 @@ package services_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	leavedto "github.com/ojt-tel4vn-project/internal-collab-api/dtos/leave"
@@ -105,8 +106,8 @@ func TestCreateLeaveRequest_Success(t *testing.T) {
 	svc := newLeaveService(leaveRepo, empRepo, jwt)
 	resp, warning, err := svc.CreateLeaveRequest(emp.ID, leavedto.CreateLeaveRequest{
 		LeaveTypeID: leaveType.ID,
-		FromDate:    "2026-03-10",
-		ToDate:      "2026-03-12", // 3 days
+		FromDate:    "2026-05-10",
+		ToDate:      "2026-05-12", // 3 days
 		Reason:      "Personal trip",
 	})
 
@@ -116,7 +117,7 @@ func TestCreateLeaveRequest_Success(t *testing.T) {
 	assert.Equal(t, models.LeaveRequestStatusPending, resp.Status)
 }
 
-func TestCreateLeaveRequest_ExceedsQuota_ShowsWarning(t *testing.T) {
+func TestCreateLeaveRequest_ExceedsQuota_Fails(t *testing.T) {
 	leaveRepo := &mocks.MockLeaveRepository{}
 	empRepo := &mocks.MockEmployeeRepository{}
 	jwt := &mocks.MockJWTService{}
@@ -135,21 +136,19 @@ func TestCreateLeaveRequest_ExceedsQuota_ShowsWarning(t *testing.T) {
 	leaveRepo.On("FindLeaveTypeByID", leaveType.ID).Return(leaveType, nil)
 	empRepo.On("FindByID", emp.ID).Return(emp, nil)
 	leaveRepo.On("FindLeaveQuota", emp.ID, leaveType.ID, 2026).Return(quota, nil)
-	leaveRepo.On("CreateLeaveRequest", mock.AnythingOfType("*models.LeaveRequest")).Return(nil)
 
 	svc := newLeaveService(leaveRepo, empRepo, jwt)
 	resp, warning, err := svc.CreateLeaveRequest(emp.ID, leavedto.CreateLeaveRequest{
 		LeaveTypeID: leaveType.ID,
-		FromDate:    "2026-03-10",
-		ToDate:      "2026-03-15", // 6 days but only 1 remaining
+		FromDate:    "2026-05-10",
+		ToDate:      "2026-05-15", // 6 days but only 1 remaining
 		Reason:      "Holiday",
 	})
 
-	assert.NoError(t, err)    // still created
-	assert.NotNil(t, resp)    // response returned
-	assert.NotNil(t, warning) // BUT with a warning
-	assert.Equal(t, "QUOTA_EXCEEDED", warning.Type)
-	assert.Equal(t, float64(1), warning.RemainingDays)
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Nil(t, warning)
+	assert.Contains(t, err.Error(), "exceeds the limit")
 }
 
 func TestCreateLeaveRequest_InvalidDateFormat(t *testing.T) {
@@ -181,8 +180,8 @@ func TestCreateLeaveRequest_LeaveTypeNotFound(t *testing.T) {
 	svc := newLeaveService(leaveRepo, empRepo, jwt)
 	resp, _, err := svc.CreateLeaveRequest(uuid.New(), leavedto.CreateLeaveRequest{
 		LeaveTypeID: fakeTypeID,
-		FromDate:    "2026-03-10",
-		ToDate:      "2026-03-12",
+		FromDate:    "2026-05-10",
+		ToDate:      "2026-05-12",
 		Reason:      "Test",
 	})
 
@@ -206,6 +205,7 @@ func TestCancelLeaveRequest_Success(t *testing.T) {
 		ID:         reqID,
 		EmployeeID: emp.ID,
 		Status:     models.LeaveRequestStatusPending,
+		FromDate:   time.Now().Add(48 * time.Hour), // future date
 	}
 
 	leaveRepo.On("FindLeaveRequestByID", reqID).Return(leaveReq, nil)
@@ -230,6 +230,7 @@ func TestCancelLeaveRequest_NotOwner(t *testing.T) {
 		ID:         reqID,
 		EmployeeID: actualOwnerID,
 		Status:     models.LeaveRequestStatusPending,
+		FromDate:   time.Now().Add(48 * time.Hour),
 	}
 
 	leaveRepo.On("FindLeaveRequestByID", reqID).Return(leaveReq, nil)
@@ -252,6 +253,7 @@ func TestCancelLeaveRequest_AlreadyApproved(t *testing.T) {
 		ID:         reqID,
 		EmployeeID: emp.ID,
 		Status:     models.LeaveRequestStatusApproved, // already approved
+		FromDate:   time.Now().Add(48 * time.Hour),
 	}
 
 	leaveRepo.On("FindLeaveRequestByID", reqID).Return(leaveReq, nil)

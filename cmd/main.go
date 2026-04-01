@@ -105,9 +105,11 @@ func main() {
 		log.Println("Email service disabled (no BREVO_API_KEY configured)")
 	}
 
+	leaveRepo := repository.NewLeaveRepository(database.DB)
+	
 	// Services
 	authService := services.NewAuthService(employeeRepo, refreshTokenRepo, jwtService, passwordService, emailService, cfg.Server.FrontendURL)
-	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService, appConfigRepo, storageService)
+	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService, appConfigRepo, storageService, leaveRepo)
 
 	categoryService := services.NewDocumentCategoryService(categoryRepo)
 	documentService := services.NewDocumentService(documentRepo, storageService)
@@ -115,7 +117,6 @@ func main() {
 	stickerRepo := repository.NewStickerRepository(database.DB)
 	stickerService := services.NewStickerService(stickerRepo, repository.NewPointConfigRepository(database.DB), database.DB)
 
-	leaveRepo := repository.NewLeaveRepository(database.DB)
 	leaveService := services.NewLeaveService(leaveRepo, employeeRepo, jwtService)
 
 	attendanceRepo := repository.NewAttendanceRepository(database.DB)
