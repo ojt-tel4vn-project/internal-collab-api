@@ -157,27 +157,11 @@ func (s *employeeServiceImpl) CreateEmployee(req *employee.CreateEmployeeRequest
 		if err == nil {
 			currentYear := time.Now().Year()
 			for _, lt := range leaveTypes {
-				totalDays := 0.0
-				name := strings.ToLower(lt.Name)
-				if strings.Contains(name, "annual") {
-					totalDays = 12.0
-				} else if strings.Contains(name, "sick") {
-					totalDays = 10.0
-				} else if strings.Contains(name, "compassionate") {
-					totalDays = 3.0
-				} else if strings.Contains(name, "maternity") {
-					totalDays = 180.0 // 6 months standard
-				} else if strings.Contains(name, "paternity") {
-					totalDays = 5.0
-				} else if strings.Contains(name, "unpaid") {
-					totalDays = 30.0 // standard generic limit
-				}
-
 				quota := &models.LeaveQuota{
 					EmployeeID:  newEmployee.ID,
 					LeaveTypeID: lt.ID,
 					Year:        currentYear,
-					TotalDays:   totalDays,
+					TotalDays:   lt.DefaultDays,
 					UsedDays:    0,
 				}
 				if err := s.leaveRepo.CreateLeaveQuota(quota); err != nil {
