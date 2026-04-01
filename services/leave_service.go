@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,10 +56,27 @@ func (s *leaveService) GetLeaveTypes() ([]leave.LeaveTypeResponse, error) {
 
 	var res []leave.LeaveTypeResponse
 	for _, t := range types {
+		defaultDays := 0.0
+		name := strings.ToLower(t.Name)
+		if strings.Contains(name, "annual leave") {
+			defaultDays = 12.0
+		} else if strings.Contains(name, "sick leave") {
+			defaultDays = 10.0
+		} else if strings.Contains(name, "compassionate") || strings.Contains(name, "bereavement") {
+			defaultDays = 3.0
+		} else if strings.Contains(name, "maternity") {
+			defaultDays = 180.0
+		} else if strings.Contains(name, "paternity") {
+			defaultDays = 5.0
+		} else if strings.Contains(name, "unpaid") {
+			defaultDays = 30.0
+		}
+
 		res = append(res, leave.LeaveTypeResponse{
 			ID:          t.ID,
 			Name:        t.Name,
 			Description: t.Description,
+			TotalDays:   defaultDays,
 		})
 	}
 	return res, nil

@@ -21,6 +21,7 @@ type LeaveTypeResponse struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
+	TotalDays   float64   `json:"total_days"`
 }
 
 type LeaveTypeListResponse struct {
