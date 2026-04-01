@@ -58,14 +58,18 @@ type DocumentService interface {
 }
 
 type documentServiceImpl struct {
-	repo    repository.DocumentRepository
-	storage storage.StorageService
+	repo         repository.DocumentRepository
+	employeeRepo repository.EmployeeRepository
+	storage      storage.StorageService
+	notifService NotificationService
 }
 
-func NewDocumentService(repo repository.DocumentRepository, storage storage.StorageService) DocumentService {
+func NewDocumentService(repo repository.DocumentRepository, employeeRepo repository.EmployeeRepository, storage storage.StorageService, notifService NotificationService) DocumentService {
 	return &documentServiceImpl{
-		repo:    repo,
-		storage: storage,
+		repo:         repo,
+		employeeRepo: employeeRepo,
+		storage:      storage,
+		notifService: notifService,
 	}
 }
 
@@ -74,6 +78,40 @@ func (s *documentServiceImpl) Create(employeeID uuid.UUID, doc models.Document) 
 	if err := s.repo.Create(&doc); err != nil {
 		return nil, response.InternalServerError("Failed to create document")
 	}
+
+	// Send notifications to allowed roles
+	go func() {
+		var targetRoles []string
+		if doc.Roles == "all" {
+			targetRoles = []string{"employee", "manager", "hr"}
+		} else {
+			roles := strings.Split(doc.Roles, ",")
+			for _, r := range roles {
+				targetRoles = append(targetRoles, strings.TrimSpace(r))
+			}
+		}
+
+		employees, err := s.employeeRepo.FindEmployeesByRoles(targetRoles)
+		if err == nil {
+			title := "New Document Uploaded"
+			message := fmt.Sprintf("A new document '%s' has been uploaded and is available for your role.", doc.Title)
+			entityType := "document"
+			actionURL := "/documents" // Adjust if needed
+
+			for _, emp := range employees {
+				// Don't notify the uploader
+				if emp.ID == employeeID {
+					continue
+				}
+				_ = s.notifService.SendNotification(emp.ID, "document", title, message, &entityType, &doc.ID, models.PriorityNormal)
+				if actionURL != "" {
+					// We might want to update the last notification with the action URL
+					// but SendNotification currently takes entityType and ID which is used for building links
+				}
+			}
+		}
+	}()
+
 	return &doc, nil
 }
 
@@ -217,7 +255,7 @@ func (s *documentServiceImpl) ValidateCreateRequest(title, categoryIDStr, roles,
 
 // HasPermission checks if a user with the given role can access a document
 func (s *documentServiceImpl) HasPermission(docRoles, userRole string) bool {
-	if userRole == "admin" || userRole == "hr" {
+	if userRole == "hr" {
 		return true
 	}
 

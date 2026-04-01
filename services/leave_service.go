@@ -32,6 +32,7 @@ type LeaveService interface {
 
 	GetMyLeaveRequests(employeeID uuid.UUID, page, limit int) ([]leave.LeaveRequestResponse, int64, error)
 	GetPendingLeaveRequests(managerID uuid.UUID, page, limit int) ([]leave.LeaveRequestResponse, int64, error)
+	GetLeaveRequestsByManager(managerID uuid.UUID, status string, page, limit int) ([]leave.LeaveRequestResponse, int64, error)
 	GetCompanyLeaveOverview(year, month int) (*leave.LeaveOverview, error)
 }
 
@@ -406,7 +407,20 @@ func (s *leaveService) GetPendingLeaveRequests(managerID uuid.UUID, page, limit 
 		return nil, 0, err
 	}
 
-	res := make([]leave.LeaveRequestResponse, 0)
+	res := make([]leave.LeaveRequestResponse, 0, len(reqs))
+	for _, req := range reqs {
+		res = append(res, *s.mapToResponse(&req, req.Employee, req.LeaveType, req.Approver))
+	}
+	return res, total, nil
+}
+
+func (s *leaveService) GetLeaveRequestsByManager(managerID uuid.UUID, status string, page, limit int) ([]leave.LeaveRequestResponse, int64, error) {
+	reqs, total, err := s.repo.FindLeaveRequestsByManager(managerID, status, page, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	res := make([]leave.LeaveRequestResponse, 0, len(reqs))
 	for _, req := range reqs {
 		res = append(res, *s.mapToResponse(&req, req.Employee, req.LeaveType, req.Approver))
 	}

@@ -121,15 +121,25 @@ func (h *LeaveHandler) RegisterRoutes(api huma.API) {
 		Tags:        []string{"Leave"},
 	}, h.handleEmailActionLeaveRequest)
 
-	// Get Leave Requests for Manager
+	// Get Leave Requests for Manager (Pending Only)
 	huma.Register(api, huma.Operation{
-		OperationID: "get-manager-leave-requests",
+		OperationID: "get-manager-pending-requests",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/leave-requests/pending-approval",
-		Summary:     "Get Leave Requests for Manager",
+		Summary:     "Get Pending Leave Requests for Manager",
 		Tags:        []string{"Leave"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.handleGetPendingLeaveRequests)
+
+	// Get All Leave Requests for Manager
+	huma.Register(api, huma.Operation{
+		OperationID: "get-manager-all-requests",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/leave-requests/approvals",
+		Summary:     "Get All Leave Requests for Manager (Approvals History)",
+		Tags:        []string{"Leave"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.handleGetManagerApprovals)
 
 	// Get Company Leave Overview (HR only)
 	huma.Register(api, huma.Operation{
@@ -402,13 +412,46 @@ func (h *LeaveHandler) handleGetPendingLeaveRequests(ctx context.Context, input 
 		limit = 20
 	}
 
-	reqs, _, err := h.service.GetPendingLeaveRequests(managerID, page, limit)
+	reqs, total, err := h.service.GetPendingLeaveRequests(managerID, page, limit)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to get pending leave requests", err)
 	}
 
 	res := &leave.LeaveRequestListResponse{}
 	res.Body.Data = reqs
+	res.Body.Total = total
+	return res, nil
+}
+
+func (h *LeaveHandler) handleGetManagerApprovals(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization" required:"true"`
+	Page          string `query:"page" default:"1"`
+	Limit         string `query:"limit" default:"20"`
+	Status        string `query:"status" doc:"Filter by status (pending, approved, rejected, canceled)"`
+}) (*leave.LeaveRequestListResponse, error) {
+	claims, err := middleware.ValidateJWTFromHeader(input.Authorization, h.jwtService)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Missing authentication")
+	}
+	managerID := claims.UserID
+
+	page, _ := strconv.Atoi(input.Page)
+	limit, _ := strconv.Atoi(input.Limit)
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+
+	reqs, total, err := h.service.GetLeaveRequestsByManager(managerID, input.Status, page, limit)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to get leave requests history", err)
+	}
+
+	res := &leave.LeaveRequestListResponse{}
+	res.Body.Data = reqs
+	res.Body.Total = total
 	return res, nil
 }
 

@@ -112,7 +112,7 @@ func main() {
 	employeeService := services.NewEmployeeService(employeeRepo, passwordService, emailService, appConfigRepo, storageService, leaveRepo)
 
 	categoryService := services.NewDocumentCategoryService(categoryRepo)
-	documentService := services.NewDocumentService(documentRepo, storageService)
+	documentService := services.NewDocumentService(documentRepo, employeeRepo, storageService, notificationService)
 
 	stickerRepo := repository.NewStickerRepository(database.DB)
 	stickerService := services.NewStickerService(stickerRepo, repository.NewPointConfigRepository(database.DB), database.DB)

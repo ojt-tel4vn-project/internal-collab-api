@@ -103,6 +103,11 @@ func (m *MockLeaveRepository) FindPendingLeaveRequestsByManager(managerID uuid.U
 	return args.Get(0).([]models.LeaveRequest), args.Get(1).(int64), args.Error(2)
 }
 
+func (m *MockLeaveRepository) FindLeaveRequestsByManager(managerID uuid.UUID, status string, page, limit int) ([]models.LeaveRequest, int64, error) {
+	args := m.Called(managerID, status, page, limit)
+	return args.Get(0).([]models.LeaveRequest), args.Get(1).(int64), args.Error(2)
+}
+
 func (m *MockLeaveRepository) FindAllLeaveRequestsOverview(year, month int) ([]models.LeaveRequest, error) {
 	args := m.Called(year, month)
 	return args.Get(0).([]models.LeaveRequest), args.Error(1)

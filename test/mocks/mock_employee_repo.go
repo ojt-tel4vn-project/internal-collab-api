@@ -94,3 +94,8 @@ func (m *MockEmployeeRepository) SearchEmployees(query string) ([]models.Employe
 	args := m.Called(query)
 	return args.Get(0).([]models.Employee), args.Error(1)
 }
+
+func (m *MockEmployeeRepository) FindEmployeesByRoles(roleNames []string) ([]models.Employee, error) {
+	args := m.Called(roleNames)
+	return args.Get(0).([]models.Employee), args.Error(1)
+}

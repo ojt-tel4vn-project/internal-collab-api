@@ -30,6 +30,7 @@ type LeaveRepository interface {
 	DeleteLeaveRequest(id uuid.UUID) error
 	FindLeaveRequestsByEmployee(employeeID uuid.UUID, page, limit int) ([]models.LeaveRequest, int64, error)
 	FindPendingLeaveRequestsByManager(managerID uuid.UUID, page, limit int) ([]models.LeaveRequest, int64, error)
+	FindLeaveRequestsByManager(managerID uuid.UUID, status string, page, limit int) ([]models.LeaveRequest, int64, error)
 	FindAllLeaveRequestsOverview(year, month int) ([]models.LeaveRequest, error)
 	FindLeaveRequestByActionToken(token string) (*models.LeaveRequest, error)
 
@@ -176,6 +177,25 @@ func (r *leaveRepository) FindPendingLeaveRequestsByManager(managerID uuid.UUID,
 	query.Count(&total)
 
 	err := query.Preload("Employee").Preload("LeaveType").Order("submitted_at asc").Offset(offset).Limit(limit).Find(&reqs).Error
+	return reqs, total, err
+}
+
+func (r *leaveRepository) FindLeaveRequestsByManager(managerID uuid.UUID, status string, page, limit int) ([]models.LeaveRequest, int64, error) {
+	var reqs []models.LeaveRequest
+	var total int64
+	offset := (page - 1) * limit
+
+	query := r.db.Model(&models.LeaveRequest{}).
+		Joins("JOIN employees ON employees.id = leave_requests.employee_id").
+		Where("employees.manager_id = ?", managerID)
+
+	if status != "" {
+		query = query.Where("leave_requests.status = ?", status)
+	}
+
+	query.Count(&total)
+
+	err := query.Preload("Employee").Preload("LeaveType").Preload("Approver").Order("submitted_at desc").Offset(offset).Limit(limit).Find(&reqs).Error
 	return reqs, total, err
 }
 

@@ -17,6 +17,7 @@ type EmployeeRepository interface {
 	FindAllBirthdays() ([]models.Employee, error)
 	FindRoleByName(name string) (*models.Role, error)
 	SearchEmployees(query string) ([]models.Employee, error)
+	FindEmployeesByRoles(roleNames []string) ([]models.Employee, error)
 }
 
 type employeeRepository struct {
@@ -128,6 +129,14 @@ func (r *employeeRepository) SearchEmployees(query string) ([]models.Employee, e
 		Where("status = ? AND unaccent(full_name) ILIKE ?",
 			models.StatusActive, searchPattern).
 		Order("full_name ASC").
+		Find(&employees).Error
+	return employees, err
+}
+
+func (r *employeeRepository) FindEmployeesByRoles(roleNames []string) ([]models.Employee, error) {
+	var employees []models.Employee
+	err := r.db.Joins("Role").
+		Where("status = ? AND \"Role\".\"name\" IN ?", models.StatusActive, roleNames).
 		Find(&employees).Error
 	return employees, err
 }
